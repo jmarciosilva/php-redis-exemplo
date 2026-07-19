@@ -45,7 +45,8 @@ php-redis-exemplo/
 │   ├── index.php          # (temporário) checagem do ambiente Docker, ver Fase 1
 │   └── produto.php        # ponto de entrada (endpoint) da aplicação
 ├── database/
-│   └── produtos.sql       # script de criação + carga de dados de exemplo
+│   ├── produtos.sql        # script de criação da tabela + 5.000 produtos de exemplo (gerado)
+│   └── gerar_seed.php      # gerador do produtos.sql (rodar de novo só se quiser mudar os dados)
 ├── benchmark/
 │   └── benchmark.php      # script que mede tempo médio com e sem cache
 ├── docker-compose.yml
@@ -72,15 +73,27 @@ docker compose up -d --build
 docker compose ps
 ```
 
-Com tudo no ar, acesse **http://localhost:8080/** — você vai ver uma página de checagem (temporária, só da Fase 1) confirmando que:
+Com tudo no ar, acesse **http://localhost:8080/** — você vai ver uma página de checagem (temporária, só das Fases 1 e 2) confirmando que:
 
 - as extensões `pdo_mysql` e `redis` do PHP estão instaladas;
 - a aplicação conseguiu conectar de verdade no MySQL;
+- a tabela `produtos` existe e já tem os 5.000 produtos de exemplo importados;
 - a aplicação conseguiu conectar de verdade no Redis (e fez um `SET`/`GET` de teste).
 
 Essa página (`public/index.php`) é só um teste de ambiente — a partir da Fase 4 do [ROADMAP.md](ROADMAP.md) ela dá lugar ao endpoint de verdade (`public/produto.php`).
 
-> Ainda não existe `database/produtos.sql` (isso é a Fase 2). Assim que ele for criado, o MySQL vai executá-lo **automaticamente** na primeira vez que o container subir (por isso a pasta `database/` já está montada em `/docker-entrypoint-initdb.d` no `docker-compose.yml`). Se você já tinha subido o ambiente antes de o arquivo existir, rode `docker compose down -v` (isso apaga o volume do banco) e suba de novo com `docker compose up -d --build` pra forçar a reimportação.
+> `database/produtos.sql` já vem pronto no repositório (é gerado por `database/gerar_seed.php`, ver seção abaixo) e é executado **automaticamente** pelo MySQL na primeira vez que o container sobe (por isso a pasta `database/` está montada em `/docker-entrypoint-initdb.d` no `docker-compose.yml`). Se você já tinha subido o ambiente antes desse arquivo existir, rode `docker compose down -v` (isso apaga o volume do banco) e suba de novo com `docker compose up -d --build` pra forçar a reimportação.
+
+## Dados de exemplo (seed)
+
+A tabela `produtos` vem com **5.000 produtos fictícios** (nomes, categorias, preços e estoque gerados aleatoriamente), pra dar volume suficiente pra testar cache e performance de verdade — 3 linhas de exemplo não seriam suficientes pra isso.
+
+O arquivo `database/produtos.sql` já está pronto e commitado, mas se quiser regenerá-lo (por exemplo, pra mudar a quantidade de produtos em `database/gerar_seed.php`), rode:
+
+```bash
+docker compose exec php php database/gerar_seed.php > database/produtos.sql
+docker compose down -v && docker compose up -d --build
+```
 
 ## Como rodar o benchmark
 

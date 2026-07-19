@@ -29,23 +29,34 @@ $testes['Extensão redis'] = extension_loaded('redis')
     : ['ok' => false, 'mensagem' => 'NÃO encontrada — confira o Dockerfile do PHP.'];
 
 // --- Teste 3: dá pra conectar de verdade no MySQL? ---
-// getenv() lê as variáveis de ambiente que definimos no docker-compose.yml
-// (lembra que lá em cima a gente passou DB_HOST, DB_DATABASE, etc pro container "php"?).
+// Agora usamos o config/database.php de verdade (Fase 2), em vez de montar
+// a conexão na mão aqui — é exatamente esse arquivo que o ProdutoRepository
+// vai usar mais pra frente.
 try {
-    $dsn = sprintf(
-        'mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4',
-        getenv('DB_HOST'),
-        getenv('DB_PORT'),
-        getenv('DB_DATABASE')
-    );
-
-    // PDO é a forma "padrão" do PHP de conversar com bancos de dados.
-    // Se a conexão falhar, ele lança uma exceção (por isso o try/catch).
-    $pdo = new PDO($dsn, getenv('DB_USERNAME'), getenv('DB_PASSWORD'));
+    $pdo = require __DIR__ . '/../config/database.php';
 
     $testes['Conexão com o MySQL'] = ['ok' => true, 'mensagem' => 'Conectou normalmente em "' . getenv('DB_HOST') . '".'];
 } catch (PDOException $erro) {
     $testes['Conexão com o MySQL'] = ['ok' => false, 'mensagem' => 'Falhou: ' . $erro->getMessage()];
+}
+
+// --- Teste 3.1: os dados de exemplo (seed) da Fase 2 foram importados? ---
+// Só faz sentido rodar essa consulta se a conexão acima deu certo, por isso
+// checamos isset($pdo) antes.
+if (isset($pdo)) {
+    try {
+        // query() aqui é seguro porque não tem NENHUM dado vindo de fora
+        // (nem do usuário, nem de variável) dentro do SQL — é um texto fixo.
+        // Quando tiver dado variável entrando na consulta (ex.: um "id" vindo
+        // da URL), a gente sempre usa prepared statements (prepare + execute).
+        $quantidade = (int) $pdo->query('SELECT COUNT(*) FROM produtos')->fetchColumn();
+
+        $testes['Dados de exemplo (seed)'] = ($quantidade > 0)
+            ? ['ok' => true, 'mensagem' => "Encontrei {$quantidade} produtos na tabela."]
+            : ['ok' => false, 'mensagem' => 'A tabela "produtos" existe, mas está vazia.'];
+    } catch (PDOException $erro) {
+        $testes['Dados de exemplo (seed)'] = ['ok' => false, 'mensagem' => 'Tabela "produtos" não encontrada: ' . $erro->getMessage()];
+    }
 }
 
 // --- Teste 4: dá pra conectar de verdade no Redis? ---

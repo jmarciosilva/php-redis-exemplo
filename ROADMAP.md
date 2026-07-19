@@ -9,10 +9,10 @@ Este arquivo mostra todas as fases planejadas pro `php-redis-exemplo`. Conforme 
 - [x] Variáveis de ambiente (`.env` ou similar) pra credenciais do banco/redis
 - [x] Testar `docker-compose up` de ponta a ponta numa máquina limpa (via `public/index.php`, checagem temporária: extensões, conexão MySQL e conexão Redis com SET/GET real — todos passando)
 
-## Fase 2 — Base de dados
-- [ ] `database/produtos.sql` com criação da tabela `produtos`
-- [ ] Carga de dados de exemplo (volume suficiente pra tornar o benchmark realista, não só 3 linhas)
-- [ ] `config/database.php` — conexão PDO comentada linha a linha
+## Fase 2 — Base de dados ✅
+- [x] `database/produtos.sql` com criação da tabela `produtos`
+- [x] Carga de dados de exemplo (5.000 produtos gerados via `database/gerar_seed.php`, volume suficiente pra tornar o benchmark realista)
+- [x] `config/database.php` — conexão PDO comentada linha a linha (validado via `public/index.php`, que confirmou os 5.000 produtos importados)
 
 ## Fase 3 — Conexão com Redis
 - [ ] `config/redis.php` — conexão com extensão `phpredis`, comentada linha a linha
