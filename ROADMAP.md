@@ -18,10 +18,11 @@ Este arquivo mostra todas as fases planejadas pro `php-redis-exemplo`. Conforme 
 - [x] `config/redis.php` — conexão com extensão `phpredis`, comentada linha a linha
 - [x] Teste manual simples de `SET`/`GET` pra validar que a conexão funciona (via `redis-cli` direto no container, e também via `public/index.php` usando `config/redis.php`)
 
-## Fase 4 — Consulta direto no banco (baseline, sem cache)
-- [ ] `src/ProdutoRepository.php` com método que busca produto só no MySQL
-- [ ] `public/produto.php` funcionando end-to-end sem nenhum cache ainda
-- [ ] Esse é o "estado ruim" que vamos comparar depois no benchmark
+## Fase 4 — Consulta direto no banco (baseline, sem cache) ✅
+- [x] `src/ProdutoRepository.php` com método que busca produto só no MySQL
+- [x] `public/produto.php` funcionando end-to-end sem nenhum cache ainda (testado com id válido, id inexistente e id inválido)
+- [x] Esse é o "estado ruim" que vamos comparar depois no benchmark (endpoint já devolve `tempo_resposta_ms` pra facilitar essa comparação)
+- [x] Bug extra corrigido: dados do seed vinham com encoding duplicado (mojibake) porque o cliente MySQL usado na importação automática usa `latin1` por padrão — resolvido adicionando `SET NAMES utf8mb4;` no topo do `produtos.sql` gerado
 
 ## Fase 5 — Cache-Aside básico (item único)
 - [ ] Buscar produto no Redis antes de ir no MySQL

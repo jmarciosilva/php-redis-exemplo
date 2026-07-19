@@ -63,6 +63,16 @@ function precoAleatorio(): float
 echo "-- Arquivo gerado automaticamente por database/gerar_seed.php — não edite na mão!\n";
 echo "-- Se precisar mudar os dados, ajuste o gerador e rode o comando de novo.\n\n";
 
+// Isso aqui é importante e fácil de esquecer: o cliente "mysql" que o
+// container usa pra importar esse arquivo automaticamente (na primeira vez
+// que o MySQL sobe) usa "latin1" como charset padrão de sessão, mesmo que
+// esse arquivo esteja salvo em UTF-8. Sem esse SET NAMES, cada caractere
+// acentuado (ex.: "número") seria mal interpretado byte a byte e acabaria
+// gravado errado no banco — um bug clássico de "mojibake" (tipo "nÃºmero").
+// Com o SET NAMES, avisamos explicitamente pro MySQL: "os bytes que vêm a
+// seguir são UTF-8, decodifique certo".
+echo "SET NAMES utf8mb4;\n\n";
+
 // Criamos a tabela só se ela ainda não existir — assim o script pode ser
 // executado de novo sem quebrar caso a tabela já esteja lá.
 echo "CREATE TABLE IF NOT EXISTS produtos (\n";
