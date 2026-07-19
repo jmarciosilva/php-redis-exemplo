@@ -7,17 +7,37 @@
  * (nem comando de Redis) direto: ela só chama métodos como
  * "buscarPorId()" e não precisa saber COMO o dado é buscado.
  *
- * A partir desta Fase 5, esse repositório implementa o padrão
- * **Cache-Aside**:
+ * O padrão usado no projeto inteiro é o **Cache-Aside**:
  *
- *   1. Primeiro, procura o produto no Redis.
+ *   1. Primeiro, procura o dado no Redis.
  *   2. Se achou, devolve na hora (sem tocar no MySQL).
  *   3. Se não achou, busca no MySQL.
  *   4. Antes de devolver, guarda o resultado no Redis (com expiração),
- *      pra que a PRÓXIMA busca pelo mesmo id já venha do cache.
+ *      pra que a PRÓXIMA busca pelo mesmo dado já venha do cache.
  *
  * Repare que o MySQL continua sendo a "fonte da verdade" — o Redis é só
  * uma cópia temporária, mais rápida de ler, dos dados que já sabemos.
+ *
+ * Esse repositório cresceu fase a fase (ver ROADMAP.md), e hoje reúne:
+ *
+ *   - Item único (Fase 5): buscarPorId() [Cache-Aside] e a versão
+ *     protegida contra cache stampede, buscarPorIdComProtecaoContraStampede()
+ *     (Fase 11).
+ *   - Listagem paginada (Fase 9): listarPaginado() [sempre MySQL, é a
+ *     baseline permanente de comparação] e listarPaginadoComCache()
+ *     [Cache-Aside pra listas].
+ *   - Atualização com invalidação de cache (Fase 10):
+ *     atualizarSemInvalidarCache() [demonstra o bug de propósito] e
+ *     atualizarComInvalidacaoDeCache() [o jeito certo].
+ *   - Utilitários: buscarPorIdSemCache(), listarCategorias() e os
+ *     contadores usados pelo benchmark/stampede.php.
+ *
+ * Repare que os métodos "baseline" (buscarPorId, listarPaginado) nunca
+ * ganharam proteção/cache nas fases seguintes — foi uma escolha de
+ * propósito, pra sempre existir uma versão "sem otimização" pra comparar
+ * lado a lado com a versão otimizada (ver public/produto.php vs.
+ * public/produto_protegido.php, e public/produtos.php vs.
+ * public/produtos_cache.php).
  */
 
 declare(strict_types=1);
@@ -29,8 +49,8 @@ class ProdutoRepository
     // é tempo suficiente pra aliviar MUITO a carga no MySQL quando um
     // produto fica popular (várias pessoas pedindo o mesmo id em sequência),
     // mas não é tanto tempo a ponto do dado ficar perigosamente desatualizado
-    // se o preço ou o estoque mudarem. Na Fase 9 (invalidação de cache) a
-    // gente vai ver que TTL sozinho não é suficiente pra todos os casos.
+    // se o preço ou o estoque mudarem. Na Fase 10 (invalidação de cache)
+    // vimos que TTL sozinho não é suficiente pra todos os casos.
     private const TTL_CACHE_EM_SEGUNDOS = 300;
 
     // TTL da cache de LISTAGEM (Fase 9) — bem mais curto que o dos produtos
@@ -80,12 +100,11 @@ class ProdutoRepository
     // próprio produto.
     private ?string $origemDaUltimaBusca = null;
 
-    // Mesma ideia do $origemDaUltimaBusca, mas pra listagem (listarPaginado()):
-    // guarda se a ÚLTIMA listagem veio do cache ou do banco. Por enquanto
-    // sempre vale 'mysql' (a listagem ainda não usa Redis), mas já deixamos
-    // esse "gancho" pronto agora — assim, quando a Fase 9 adicionar cache
-    // de listagem, a página public/produtos.php (que já lê esse valor pra
-    // mostrar o badge de origem + tempo) não vai precisar mudar NADA.
+    // Mesma ideia do $origemDaUltimaBusca, mas pra listagem: guarda se a
+    // ÚLTIMA listagem veio do cache ou do banco. listarPaginado() sempre
+    // grava 'mysql' aqui (é a versão baseline, nunca cacheia, de propósito
+    // — ver public/produtos.php); listarPaginadoComCache() (Fase 9) grava
+    // 'redis' ou 'mysql' de verdade, dependendo do que aconteceu.
     private ?string $origemDaUltimaListagem = null;
 
     public function __construct(PDO $pdo, Redis $redis)

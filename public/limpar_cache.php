@@ -13,8 +13,8 @@
  * ferramenta de DEMONSTRAÇÃO. Num sistema em produção de verdade, um
  * endpoint que apaga cache não ficaria exposto sem autenticação — qualquer
  * pessoa poderia ficar limpando o cache repetidamente e forçar carga
- * extra no banco (isso é, inclusive, uma variação do "cache stampede" que
- * vamos ver na Fase 11).
+ * extra no banco (isso é, inclusive, uma variação do "cache stampede"
+ * tratado na Fase 11 — ver benchmark/stampede.php).
  */
 
 declare(strict_types=1);

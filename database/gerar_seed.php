@@ -80,7 +80,7 @@ echo "CREATE TABLE IF NOT EXISTS produtos (\n";
 echo "    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,\n";         // identificador único de cada produto
 echo "    nome VARCHAR(150) NOT NULL,\n";                          // nome exibido do produto
 echo "    descricao TEXT NOT NULL,\n";                             // texto descritivo (mais longo, por isso TEXT e não VARCHAR)
-echo "    categoria VARCHAR(50) NOT NULL,\n";                       // usado na Fase 8 (cache de listagem por categoria)
+echo "    categoria VARCHAR(50) NOT NULL,\n";                       // usado na Fase 9 (cache de listagem por categoria)
 echo "    preco DECIMAL(10,2) NOT NULL,\n";                        // DECIMAL evita erro de arredondamento que FLOAT teria com dinheiro
 echo "    estoque INT UNSIGNED NOT NULL DEFAULT 0,\n";             // quantidade disponível
 echo "    criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,\n";

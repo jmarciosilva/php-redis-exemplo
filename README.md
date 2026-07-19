@@ -14,6 +14,7 @@ A ideia surgiu depois de um teste de emprego onde percebi que muita gente usa ca
 - Como decidir chave de cache, TTL (tempo de expiração) e o que cachear.
 - Problemas reais de cache que empresas erram: dado desatualizado (invalidação), cache de lista vs. item único, e o famoso **cache stampede**.
 - Como medir, com números de verdade, o quanto o cache melhora (ou não) o desempenho — nada de "confia, é mais rápido".
+- Cada otimização tem uma página/endpoint "antes" e um "depois" vivendo lado a lado (nunca um substitui o outro) — dá pra comparar visualmente a qualquer momento, sem precisar confiar na memória de "como era antes".
 
 Veja o [ANALISE.md](ANALISE.md) para entender o problema de performance que estamos resolvendo, e o [ROADMAP.md](ROADMAP.md) para acompanhar as fases de desenvolvimento (vou marcando ✅ conforme avança).
 
@@ -33,41 +34,41 @@ Veja o [ANALISE.md](ANALISE.md) para entender o problema de performance que esta
 php-redis-exemplo/
 ├── docker/
 │   ├── php/
-│   │   └── Dockerfile     # imagem do PHP-FPM com as extensões pdo_mysql e redis
+│   │   └── Dockerfile          # imagem do PHP-FPM: extensões pdo_mysql/redis/curl, pool com mais workers
 │   └── nginx/
-│       └── default.conf   # config do Nginx apontando pra pasta public/
+│       └── default.conf        # config do Nginx apontando pra pasta public/
 ├── config/
-│   ├── database.php       # configuração de conexão com o MySQL
-│   └── redis.php          # configuração de conexão com o Redis
+│   ├── database.php            # configuração de conexão com o MySQL
+│   └── redis.php                # configuração de conexão com o Redis
 ├── src/
-│   ├── ProdutoRepository.php   # onde mora a lógica do Cache-Aside (item único e listagem)
-│   ├── diagnostico.php         # checagens de ambiente (extensões, MySQL, Redis), reaproveitadas por index.php e diagnostico.php
+│   ├── ProdutoRepository.php   # toda a lógica de Cache-Aside: item único, listagem, invalidação, stampede
+│   ├── diagnostico.php         # checagens de ambiente, reaproveitadas por index.php e diagnostico.php
 │   └── views/
-│       ├── cabecalho.php       # <head> + nav, reaproveitado pelas páginas (fora de public/, não é acessível direto)
+│       ├── cabecalho.php       # <head> + nav, reaproveitado pelas páginas (fora de public/, não acessível direto)
 │       └── rodape.php          # fecha as tags abertas pelo cabecalho.php
 ├── public/
-│   ├── index.php          # página de diagnóstico do ambiente, com botão "Testar agora" (via JS)
-│   ├── diagnostico.php    # endpoint JSON usado pelo botão "Testar agora"
-│   ├── produtos.php        # listagem de produtos SEM cache (baseline permanente de comparação)
-│   ├── produtos_cache.php  # a mesma listagem, agora COM cache (Cache-Aside), lado a lado com a de cima
-│   ├── performance.php     # dashboard com os números do benchmark + testador ao vivo
-│   ├── produto.php         # endpoint JSON: busca 1 produto (Cache-Aside, SEM proteção contra stampede)
-│   ├── produto_protegido.php  # o mesmo endpoint, COM proteção contra cache stampede (lock no Redis)
-│   ├── editar_produto.php  # laboratório de invalidação: edita um produto com ou sem invalidar o cache
-│   ├── limpar_cache.php    # endpoint JSON: força um cache miss num produto (usado pelo testador ao vivo)
+│   ├── index.php               # diagnóstico do ambiente, com botão "Testar agora" (via JS)
+│   ├── diagnostico.php         # endpoint JSON usado pelo botão "Testar agora"
+│   ├── produtos.php            # listagem de produtos SEM cache (baseline permanente de comparação)
+│   ├── produtos_cache.php      # a mesma listagem, COM cache (Cache-Aside), lado a lado com a de cima
+│   ├── produto.php             # endpoint JSON: busca 1 produto (Cache-Aside, SEM proteção contra stampede)
+│   ├── produto_protegido.php   # o mesmo endpoint, COM proteção contra stampede (lock no Redis)
+│   ├── editar_produto.php      # laboratório de invalidação: edita um produto com/sem invalidar o cache
+│   ├── limpar_cache.php        # endpoint JSON: força um cache miss num produto (usado pelo testador ao vivo)
+│   ├── performance.php         # dashboard com os números do benchmark + testador ao vivo
 │   └── assets/
 │       ├── css/estilo.css      # CSS puro, compartilhado por todas as páginas
 │       ├── js/performance.js   # JS puro do testador ao vivo (fetch + DOM, sem libs)
 │       └── js/diagnostico.js   # JS puro do botão "Testar agora" da página de diagnóstico
 ├── database/
-│   ├── produtos.sql        # script de criação da tabela + 10.000 produtos de exemplo (gerado)
-│   └── gerar_seed.php      # gerador do produtos.sql (rodar de novo só se quiser mudar os dados)
+│   ├── produtos.sql            # script de criação da tabela + 10.000 produtos de exemplo (gerado)
+│   └── gerar_seed.php          # gerador do produtos.sql (rodar de novo só se quiser mudar os dados)
 ├── benchmark/
 │   ├── benchmark.php           # mede tempo médio com e sem cache (requisições concorrentes)
 │   ├── stampede.php            # mede quantas vezes o MySQL é consultado numa rajada simultânea pro mesmo produto
 │   └── ultimo_resultado.json   # resultado da última execução de benchmark.php (lido por public/performance.php)
 ├── docker-compose.yml
-├── .env.example            # modelo das variáveis de ambiente (copiar pra .env)
+├── .env.example                 # modelo das variáveis de ambiente (copiar pra .env)
 ├── ANALISE.md
 ├── ROADMAP.md
 └── README.md
@@ -90,14 +91,19 @@ docker compose up -d --build
 docker compose ps
 ```
 
-Com tudo no ar, acesse:
+Com tudo no ar, acesse (páginas, pra navegar no navegador):
 
-- **http://localhost:8080/** — diagnóstico do ambiente (extensões PHP, conexão MySQL, seed importado, conexão Redis);
+- **http://localhost:8080/** — diagnóstico do ambiente (extensões PHP, conexão MySQL, seed importado, conexão Redis), com botão "🔄 Testar agora" pra rodar tudo de novo sem recarregar a página;
 - **http://localhost:8080/produtos.php** — listagem de produtos **sem cache** (baseline permanente, sempre consulta o MySQL);
 - **http://localhost:8080/produtos_cache.php** — a mesma listagem, **com cache** (Cache-Aside) — compare os tempos lado a lado com a de cima; recarregue com o mesmo filtro pra ver a origem virar `redis`;
 - **http://localhost:8080/editar_produto.php** — laboratório de invalidação: carregue um produto, edite "sem invalidar" (veja o Redis ficar desatualizado) e depois "com invalidação" (veja corrigir na hora);
-- **http://localhost:8080/performance.php** — dashboard com os números do benchmark e um testador ao vivo (digite um id, veja a origem mudar de `mysql` pra `redis` na segunda busca);
-- **http://localhost:8080/produto.php?id=1** — o endpoint JSON puro (Cache-Aside), se você preferir ver a resposta crua.
+- **http://localhost:8080/performance.php** — dashboard com os números do benchmark e um testador ao vivo (digite um id, veja a origem mudar de `mysql` pra `redis` na segunda busca).
+
+E os endpoints JSON puros, se preferir ver a resposta crua (ou testar via `curl`):
+
+- **http://localhost:8080/produto.php?id=1** — busca um produto via Cache-Aside, sem proteção contra stampede;
+- **http://localhost:8080/produto_protegido.php?id=1** — o mesmo, mas com proteção contra cache stampede (lock no Redis);
+- **http://localhost:8080/diagnostico.php** — as mesmas checagens da página inicial, em JSON.
 
 > `database/produtos.sql` já vem pronto no repositório (é gerado por `database/gerar_seed.php`, ver seção abaixo) e é executado **automaticamente** pelo MySQL na primeira vez que o container sobe (por isso a pasta `database/` está montada em `/docker-entrypoint-initdb.d` no `docker-compose.yml`). Se você já tinha subido o ambiente antes desse arquivo existir, rode `docker compose down -v` (isso apaga o volume do banco) e suba de novo com `docker compose up -d --build` pra forçar a reimportação.
 

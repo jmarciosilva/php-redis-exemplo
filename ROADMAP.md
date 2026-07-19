@@ -40,7 +40,8 @@ Este arquivo mostra todas as fases planejadas pro `php-redis-exemplo`. Conforme 
 ## Fase 7 — Números reais no ANALISE.md ✅
 - [x] Rodar o benchmark localmente e coletar os números
 - [x] Substituir a tabela placeholder do `ANALISE.md` pelos resultados reais
-- [x] Comentar o que os números mostram (e onde o cache ajuda mais ou menos) — inclusive o aprendizado de que requisições sequenciais não revelam o problema; só concorrência real mostra a vantagem do cache (1,5x–1,6x mais rápido na média, vantagem absoluta crescendo com a concorrência)
+- [x] Comentar o que os números mostram (e onde o cache ajuda mais ou menos) — inclusive o aprendizado de que requisições sequenciais não revelam o problema; só concorrência real mostra a vantagem do cache
+- [x] **Revisado na Fase 12**: os números originais desta fase (1,5x–1,6x) foram medidos com o bug do `pm.max_children = 5` (ver Fase 11) ainda presente — refeitos com o PHP-FPM corrigido, ver a tabela atualizada no `ANALISE.md`
 
 ## Fase 8 — Interface visual (views) ✅
 - [x] `public/assets/css/estilo.css` — CSS puro (sem framework), com suporte a modo claro/escuro
@@ -75,10 +76,11 @@ Este arquivo mostra todas as fases planejadas pro `php-redis-exemplo`. Conforme 
 - [x] `benchmark/stampede.php` — script dedicado que dispara uma rajada de N requisições simultâneas pro MESMO produto (cache vazio de propósito) e mede, com um contador real no Redis, quantas vezes o MySQL foi consultado de verdade
 - [x] Comparação real, rodada 3x com produtos diferentes: **sem proteção, 3 a 6 consultas redundantes ao MySQL** pra responder a mesma pergunta feita 30 vezes ao mesmo tempo; **com proteção, sempre exatamente 1**
 
-## Fase 12 — Revisão geral
-- [ ] Revisar todos os comentários do código (clareza, tom, consistência em PT-BR)
-- [ ] Revisar README.md com instruções finais de como rodar tudo
-- [ ] Conferir se ANALISE.md reflete o projeto final (não só o rascunho inicial)
+## Fase 12 — Revisão geral ✅
+- [x] Revisão de comentários: corrigidas várias referências a "Fase X" que ficaram desatualizadas depois da renumeração (Fase 8 inserida) ou que descreviam algo como "futuro" que já tinha sido implementado (`benchmark.php`, `gerar_seed.php`, `limpar_cache.php`, `produtos.php`, `ProdutoRepository.php`) — nenhum erro de lint, comportamento reconferido depois de cada ajuste
+- [x] Docblock principal do `ProdutoRepository` reescrito como um mapa geral da classe (o que existe, o que é baseline vs. otimizado), em vez de descrever só a Fase 5
+- [x] README.md revisado: árvore de arquivos realinhada, lista de páginas/endpoints completada (faltavam `produto_protegido.php` e `diagnostico.php`)
+- [x] **Achado importante ao revisar o ANALISE.md**: os números do benchmark (Fase 7) tinham sido medidos com o bug do `pm.max_children = 5` (só descoberto na Fase 11) ainda presente. Refizemos os testes com o PHP-FPM corrigido e o resultado mudou: dentro da capacidade do PHP-FPM (≤30 simultâneas), o cache não faz diferença perceptível pra essa consulta indexada numa tabela de 10k linhas — o ganho real (1,1x-1,5x, com variância notável entre execuções) só aparece quando a concorrência ultrapassa a capacidade do servidor e as requisições passam a esperar em fila. `ANALISE.md` reescrito com essa história completa, com transparência sobre a variância observada
 
 ## Fase 13 — Publicação
 - [ ] Escrever o post do blog usando este repositório como base

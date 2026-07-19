@@ -130,7 +130,8 @@ function dispararLoteConcorrente(array $ids, int $quantidade): array
  * de CADA lote — isso simula "não ter cache nenhum" (toda requisição
  * precisa ir até o MySQL) e, de quebra, ainda simula um mini "cache
  * stampede" a cada lote (várias requisições simultâneas todas batendo no
- * banco pro mesmo produto — assunto que a gente vai aprofundar na Fase 10).
+ * banco pro mesmo produto — assunto aprofundado na Fase 11 (ver
+ * benchmark/stampede.php).
  */
 function rodarCenario(
     string $nomeDoCenario,

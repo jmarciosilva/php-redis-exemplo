@@ -39,8 +39,9 @@ $categoriaSelecionada = isset($_GET['categoria']) && $_GET['categoria'] !== ''
 $categoriasDisponiveis = $repositorio->listarCategorias();
 
 // Marca o instante antes de buscar os dados, pra medir quanto tempo a
-// consulta (ou, depois da Fase 9, a busca no cache) levou de verdade —
-// o mesmo tipo de medição que já fazemos em produto.php.
+// consulta no MySQL levou de verdade — o mesmo tipo de medição que já
+// fazemos em produto.php. Essa página nunca cacheia (ver produtos_cache.php,
+// da Fase 9, pra comparar lado a lado), então esse tempo nunca deve cair.
 $inicioDaConsulta = microtime(true);
 
 $resultado = $repositorio->listarPaginado($pagina, PRODUTOS_POR_PAGINA, $categoriaSelecionada);
