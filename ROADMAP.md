@@ -68,10 +68,12 @@ Este arquivo mostra todas as fases planejadas pro `php-redis-exemplo`. Conforme 
 - [x] Cobre também o impacto na listagem: `atualizarComInvalidacaoDeCache()` também apaga TODAS as chaves `listagem:produtos:*` (via `SCAN`, não `KEYS`, pra não bloquear o Redis) — testado: duas listagens cacheadas, ambas some depois de uma única edição
 - [x] Discutido por que a invalidação de item único é precisa (uma chave) mas a de listagem é "grosseira" (apaga tudo, já que rastrear quais páginas contêm um produto seria bem mais complexo) — mitigado pelo TTL curto de 60s da Fase 9
 
-## Fase 11 — Cache stampede
-- [ ] Demonstrar o problema: TTL expira e várias requisições simultâneas caem no MySQL ao mesmo tempo
-- [ ] Implementar uma solução simples (ex.: lock/mutex no Redis, ou jitter no TTL)
-- [ ] Comparar comportamento antes/depois da correção (se possível, com o benchmark)
+## Fase 11 — Cache stampede ✅
+- [x] Achado extra antes de começar: `pm.max_children` do PHP-FPM estava em 5 (padrão da imagem oficial) — bem abaixo da concorrência que usamos nos benchmarks (20-50). Aumentado pra 30 no Dockerfile, senão boa parte das "requisições simultâneas" ficaria enfileirada esperando um worker livre, escondendo tanto o stampede quanto os ganhos medidos nos benchmarks anteriores
+- [x] `ProdutoRepository::buscarPorIdComProtecaoContraStampede()` — solução por lock (`SET NX EX` no Redis): só um processo consulta o MySQL por vez pra um id sem cache; os demais esperam (polling curto) e reaproveitam o cache recém-populado; se a espera estourar, cai num fallback (consulta o MySQL direto)
+- [x] `public/produto_protegido.php` — endpoint gêmeo de `produto.php`, só que usando a versão protegida, pro "antes/depois" ficar comparável lado a lado (mesmo padrão de `produtos.php`/`produtos_cache.php`)
+- [x] `benchmark/stampede.php` — script dedicado que dispara uma rajada de N requisições simultâneas pro MESMO produto (cache vazio de propósito) e mede, com um contador real no Redis, quantas vezes o MySQL foi consultado de verdade
+- [x] Comparação real, rodada 3x com produtos diferentes: **sem proteção, 3 a 6 consultas redundantes ao MySQL** pra responder a mesma pergunta feita 30 vezes ao mesmo tempo; **com proteção, sempre exatamente 1**
 
 ## Fase 12 — Revisão geral
 - [ ] Revisar todos os comentários do código (clareza, tom, consistência em PT-BR)

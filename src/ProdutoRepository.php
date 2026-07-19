@@ -46,6 +46,27 @@ class ProdutoRepository
     // Isso não substitui invalidação de verdade — é só o assunto da Fase 10.
     private const TTL_CACHE_LISTAGEM_EM_SEGUNDOS = 60;
 
+    // --- Configurações da proteção contra CACHE STAMPEDE (Fase 11) ---
+    //
+    // Tempo de vida do "lock" (trava) que um processo cria no Redis antes
+    // de consultar o MySQL. 5 segundos é bem mais que o suficiente pra
+    // qualquer consulta nossa terminar; ele existe só como uma rede de
+    // segurança: se o processo que criou o lock travar ou cair no meio do
+    // caminho, o lock se auto-destrói sozinho depois desse tempo, em vez
+    // de ficar travado pra sempre.
+    private const TTL_LOCK_EM_SEGUNDOS = 5;
+
+    // Quantas vezes (no máximo) um processo que NÃO conseguiu o lock vai
+    // tentar ler o cache de novo antes de desistir e ir direto no MySQL
+    // como último recurso.
+    private const TENTATIVAS_MAXIMAS_DE_ESPERA = 20;
+
+    // Quanto tempo esperar entre uma tentativa e outra, em microssegundos
+    // (50.000 microssegundos = 50 milissegundos). 20 tentativas x 50ms =
+    // até 1 segundo de espera no total, o que já é bem generoso pertinho
+    // do tempo real que uma consulta ao MySQL leva neste projeto.
+    private const INTERVALO_DE_ESPERA_EM_MICROSSEGUNDOS = 50_000;
+
     // Guardamos as duas conexões recebidas de fora (injeção de dependência):
     // a classe não precisa saber DE ONDE vieram, só usa as duas prontas.
     private PDO $pdo;
@@ -86,6 +107,16 @@ class ProdutoRepository
     /**
      * Busca um único produto pelo id, usando o padrão Cache-Aside.
      *
+     * ESSE MÉTODO NÃO TEM PROTEÇÃO CONTRA CACHE STAMPEDE — de propósito.
+     * Ele é a versão "baseline" (a mesma desde a Fase 5), usada por
+     * public/produto.php, que fica como referência de comparação ao lado
+     * de public/produto_protegido.php (Fase 11, ver
+     * buscarPorIdComProtecaoContraStampede() logo abaixo). Se MUITAS
+     * requisições pedirem o MESMO produto bem no instante em que o cache
+     * dele está vazio (expirou, ou nunca foi visitado), TODAS elas caem no
+     * MySQL ao mesmo tempo — mesmo sendo, na prática, a MESMA pergunta
+     * repetida N vezes. Isso é o "cache stampede" (ou "dog-piling").
+     *
      * Devolve um array associativo com os dados do produto, ou null se
      * não existir nenhum produto com esse id (nem no cache, nem no banco).
      */
@@ -108,16 +139,122 @@ class ProdutoRepository
         if ($produtoEmCache !== false) {
             $this->origemDaUltimaBusca = 'redis';
 
-            // No Redis, tudo é guardado como string — por isso, lá na frente
-            // (passo 3), guardamos o produto como uma string JSON. Aqui a
+            // No Redis, tudo é guardado como string — por isso, mais na
+            // frente, guardamos o produto como uma string JSON. Aqui a
             // gente faz o caminho inverso: transforma essa string JSON de
             // volta em array associativo (o "true" no final pede exatamente
             // isso — sem ele, json_decode devolveria um objeto stdClass).
             return json_decode($produtoEmCache, true);
         }
 
-        // --- Passo 2: não tava no cache, então busca no MySQL ---
+        // --- Passo 2: não tava no cache, então busca no MySQL (sem
+        // nenhuma proteção — é exatamente esse ponto que vira um problema
+        // quando MUITAS requisições chegam aqui ao mesmo tempo) ---
         $this->origemDaUltimaBusca = 'mysql';
+        $produto = $this->buscarPorIdNoMysql($id);
+
+        if ($produto === null) {
+            return null;
+        }
+
+        // --- Passo 3: guarda no Redis pra próxima vez vir do cache ---
+        $this->redis->setex($chave, self::TTL_CACHE_EM_SEGUNDOS, json_encode($produto));
+
+        return $produto;
+    }
+
+    /**
+     * Mesma busca de buscarPorId(), só que protegida contra **cache
+     * stampede** usando um lock (trava) no Redis — só UM processo por vez
+     * tem permissão pra ir no MySQL buscar um id que não está em cache;
+     * todos os outros esperam esse processo terminar e leem o resultado
+     * que ELE guardou no cache, em vez de irem no MySQL também.
+     *
+     * Usado por public/produto_protegido.php.
+     */
+    public function buscarPorIdComProtecaoContraStampede(int $id): ?array
+    {
+        $chave = "produto:{$id}";
+
+        // --- Passo 1: igual antes, tenta o cache primeiro ---
+        $produtoEmCache = $this->redis->get($chave);
+
+        if ($produtoEmCache !== false) {
+            $this->origemDaUltimaBusca = 'redis';
+
+            return json_decode($produtoEmCache, true);
+        }
+
+        // --- Passo 2: cache vazio. Antes de ir no MySQL, tenta "trancar a
+        // porta" pra esse id específico ---
+        $chaveDoLock = "lock:produto:{$id}";
+
+        // SET com as opções NX + EX faz TUDO isso numa única operação
+        // atômica: "crie essa chave com o valor 1, só SE ela ainda não
+        // existir (NX = 'not exists'), e já com expiração de 5s (EX)".
+        // Como o Redis processa comandos um de cada vez (é single-thread
+        // pros comandos), só EXATAMENTE UM processo, entre vários rodando
+        // ao mesmo tempo, consegue criar essa chave — é essa garantia que
+        // vira o nosso "lock".
+        $conseguiuOLock = $this->redis->set($chaveDoLock, '1', ['NX', 'EX' => self::TTL_LOCK_EM_SEGUNDOS]);
+
+        if ($conseguiuOLock) {
+            // Fui eu que tranquei a porta: sou o responsável por buscar
+            // no MySQL e repor o cache pros outros aproveitarem.
+            $this->origemDaUltimaBusca = 'mysql (com lock)';
+            $produto = $this->buscarPorIdNoMysql($id);
+
+            if ($produto !== null) {
+                $this->redis->setex($chave, self::TTL_CACHE_EM_SEGUNDOS, json_encode($produto));
+            }
+
+            // Destranca a porta assim que terminar — não precisa esperar
+            // o lock expirar sozinho, já que já fizemos o que precisava.
+            $this->redis->del($chaveDoLock);
+
+            return $produto;
+        }
+
+        // --- Não consegui o lock: outro processo já está buscando esse
+        // produto no MySQL neste exato momento. Em vez de ir no banco
+        // também (o que recriaria o próprio stampede que queremos
+        // evitar), esperamos um pouquinho e ficamos checando se o cache
+        // já foi preenchido pelo processo que tem o lock. ---
+        for ($tentativa = 0; $tentativa < self::TENTATIVAS_MAXIMAS_DE_ESPERA; $tentativa++) {
+            usleep(self::INTERVALO_DE_ESPERA_EM_MICROSSEGUNDOS);
+
+            $produtoEmCache = $this->redis->get($chave);
+
+            if ($produtoEmCache !== false) {
+                $this->origemDaUltimaBusca = 'redis (após esperar o lock)';
+
+                return json_decode($produtoEmCache, true);
+            }
+        }
+
+        // --- Esperamos bastante (até 1s) e o cache ainda não apareceu —
+        // talvez quem tinha o lock tenha travado ou demorado demais. Em
+        // vez de deixar o usuário esperando pra sempre, caímos pra buscar
+        // direto no MySQL como último recurso: melhor responder devagar
+        // do que não responder. ---
+        $this->origemDaUltimaBusca = 'mysql (fallback após espera)';
+
+        return $this->buscarPorIdNoMysql($id);
+    }
+
+    /**
+     * A consulta de verdade no MySQL pra um produto único, sem nenhuma
+     * lógica de cache — reaproveitada por buscarPorId() e por
+     * buscarPorIdComProtecaoContraStampede(), pra não duplicar SQL.
+     *
+     * Também incrementa um CONTADOR no Redis, só pra fins de observação:
+     * é o que benchmark/stampede.php usa pra medir, de forma bem concreta,
+     * "quantas vezes o MySQL foi realmente consultado pra esse produto" —
+     * o número que mostra o estrago (ou a ausência dele) de um stampede.
+     */
+    private function buscarPorIdNoMysql(int $id): ?array
+    {
+        $this->redis->incr("contador:consultas_mysql:produto:{$id}");
 
         // "prepare" monta a consulta com um placeholder (:id) no lugar do
         // valor. Isso é o que chamamos de "prepared statement": o PDO
@@ -137,22 +274,31 @@ class ProdutoRepository
         // encontrar nenhuma linha, o PDO devolve "false".
         $produto = $consulta->fetch();
 
-        // Se não existe esse produto nem no MySQL, não tem o que cachear —
-        // devolvemos null direto (convertendo o "false" do PDO pra "null",
-        // que é mais claro de entender pra quem for usar esse método).
-        if ($produto === false) {
-            return null;
-        }
+        // Convertendo "false" (nada encontrado) pra "null", que é mais
+        // claro de entender pra quem for usar esse método depois.
+        return $produto === false ? null : $produto;
+    }
 
-        // --- Passo 3: guarda no Redis pra próxima vez vir do cache ---
-        // setex() = "SET com EXpiração": grava a chave já com um tempo de
-        // vida (em segundos). Depois desse tempo, o próprio Redis apaga a
-        // chave sozinho — a gente não precisa fazer limpeza manual.
-        // json_encode transforma nosso array PHP numa string (formato que
-        // o Redis entende), já que Redis não guarda arrays diretamente.
-        $this->redis->setex($chave, self::TTL_CACHE_EM_SEGUNDOS, json_encode($produto));
+    /**
+     * Zera o contador de consultas ao MySQL de um produto — usado por
+     * benchmark/stampede.php antes de cada rajada de teste, pra cada
+     * cenário começar a contagem do zero.
+     */
+    public function resetarContadorDeConsultasMysql(int $id): void
+    {
+        $this->redis->del("contador:consultas_mysql:produto:{$id}");
+    }
 
-        return $produto;
+    /**
+     * Lê o contador de quantas vezes o MySQL foi consultado pra um
+     * produto desde o último reset — usado por benchmark/stampede.php
+     * pra medir o efeito (ou a ausência dele) de um cache stampede.
+     */
+    public function contarConsultasMysql(int $id): int
+    {
+        $valor = $this->redis->get("contador:consultas_mysql:produto:{$id}");
+
+        return $valor === false ? 0 : (int) $valor;
     }
 
     /**

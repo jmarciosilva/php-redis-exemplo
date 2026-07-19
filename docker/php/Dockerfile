@@ -26,6 +26,22 @@ RUN docker-php-ext-install pdo pdo_mysql curl
 # docker-php-ext-enable (que só cria o arquivo de configuração apontando pra extensão instalada).
 RUN pecl install redis && docker-php-ext-enable redis
 
+# Por padrão, o pool do PHP-FPM só permite 5 processos rodando ao mesmo
+# tempo (pm.max_children = 5) — o suficiente pro dia a dia, mas MUITO
+# pouco pros nossos benchmarks de concorrência (Fase 6) e pra demonstração
+# de cache stampede (Fase 11), que disparam 20-50 requisições simultâneas
+# de propósito. Com só 5 workers, boa parte dessas requisições ficaria
+# ENFILEIRADA esperando um processo livre, em vez de rodar em paralelo de
+# verdade — o que enfraqueceria (ou até escondería) os problemas que
+# estamos tentando demonstrar. Aumentamos aqui pra caber a concorrência
+# que a gente realmente testa neste projeto.
+RUN sed -i \
+        -e 's/^pm.max_children = .*/pm.max_children = 30/' \
+        -e 's/^pm.start_servers = .*/pm.start_servers = 6/' \
+        -e 's/^pm.min_spare_servers = .*/pm.min_spare_servers = 4/' \
+        -e 's/^pm.max_spare_servers = .*/pm.max_spare_servers = 10/' \
+        /usr/local/etc/php-fpm.d/www.conf
+
 # Define a pasta padrão de trabalho dentro do container. É aqui que o código da nossa
 # aplicação vai ficar montado (ver o "volumes" no docker-compose.yml).
 WORKDIR /var/www

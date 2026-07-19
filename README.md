@@ -49,7 +49,8 @@ php-redis-exemplo/
 │   ├── produtos.php        # listagem de produtos SEM cache (baseline permanente de comparação)
 │   ├── produtos_cache.php  # a mesma listagem, agora COM cache (Cache-Aside), lado a lado com a de cima
 │   ├── performance.php     # dashboard com os números do benchmark + testador ao vivo
-│   ├── produto.php         # endpoint JSON: busca 1 produto (Cache-Aside)
+│   ├── produto.php         # endpoint JSON: busca 1 produto (Cache-Aside, SEM proteção contra stampede)
+│   ├── produto_protegido.php  # o mesmo endpoint, COM proteção contra cache stampede (lock no Redis)
 │   ├── editar_produto.php  # laboratório de invalidação: edita um produto com ou sem invalidar o cache
 │   ├── limpar_cache.php    # endpoint JSON: força um cache miss num produto (usado pelo testador ao vivo)
 │   └── assets/
@@ -59,8 +60,9 @@ php-redis-exemplo/
 │   ├── produtos.sql        # script de criação da tabela + 10.000 produtos de exemplo (gerado)
 │   └── gerar_seed.php      # gerador do produtos.sql (rodar de novo só se quiser mudar os dados)
 ├── benchmark/
-│   ├── benchmark.php           # script que mede tempo médio com e sem cache (requisições concorrentes)
-│   └── ultimo_resultado.json   # resultado da última execução (lido por public/performance.php)
+│   ├── benchmark.php           # mede tempo médio com e sem cache (requisições concorrentes)
+│   ├── stampede.php            # mede quantas vezes o MySQL é consultado numa rajada simultânea pro mesmo produto
+│   └── ultimo_resultado.json   # resultado da última execução de benchmark.php (lido por public/performance.php)
 ├── docker-compose.yml
 ├── .env.example            # modelo das variáveis de ambiente (copiar pra .env)
 ├── ANALISE.md
@@ -123,6 +125,16 @@ docker compose exec php php benchmark/benchmark.php 20 50
 ```
 
 > Por que concorrente, e não uma requisição de cada vez? Ver a explicação completa em [ANALISE.md](ANALISE.md) — resumindo: com uma tabela pequena e busca indexada, o MySQL responde rápido demais pra mostrar diferença quando testado sequencialmente. O gargalo real (e o que o cache resolve) só aparece com várias requisições simultâneas disputando a mesma conexão do banco.
+
+## Como rodar o teste de cache stampede
+
+O script `benchmark/stampede.php` demonstra o problema de **cache stampede**: dispara uma rajada de requisições simultâneas pro MESMO produto, garantindo que o cache dele está vazio na hora — e mede quantas vezes o MySQL foi consultado de verdade (usando um contador no Redis), comparando `produto.php` (sem proteção) com `produto_protegido.php` (com lock no Redis).
+
+```bash
+docker compose exec php php benchmark/stampede.php
+docker compose exec php php benchmark/stampede.php 3 30
+# produto id=3, 30 requisições simultâneas por cenário
+```
 
 ## Licença
 

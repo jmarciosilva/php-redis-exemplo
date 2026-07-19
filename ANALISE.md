@@ -81,12 +81,36 @@ O problema de cache que motivou esse projeto (ver [Contexto](#contexto)) nunca f
 
 > Números exatos variam conforme a máquina, mas o padrão (cache ganhando e a vantagem crescendo com a concorrência) é reproduzível — rode você mesmo com `docker compose exec php php benchmark/benchmark.php` e compare.
 
-## Problemas de cache que também vamos abordar (não só o "feliz")
+## Problemas de cache que também abordamos (não só o "feliz")
 
-Além do ganho de performance, cache mal feito cria problemas próprios — e é exatamente isso que a empresa do teste técnico estava sofrendo. Vamos tratar, nas fases seguintes do roadmap:
+Além do ganho de performance, cache mal feito cria problemas próprios — e é exatamente isso que a empresa do teste técnico estava sofrendo.
 
-- **Dado desatualizado (invalidação de cache)**: o que acontece se o produto for atualizado no banco e o Redis continuar servindo a versão antiga?
-- **Cache de item único vs. cache de listagem**: são estratégias de chave e invalidação bem diferentes, e misturar as duas é uma fonte comum de bug.
-- **Cache stampede** (ou "dog-piling"): quando o cache de um dado muito acessado expira, e várias requisições simultâneas caem no MySQL ao mesmo tempo pra reconstruir o mesmo cache — na prática, recriando o problema que o cache deveria resolver, só que de forma concentrada.
+- **Dado desatualizado (invalidação de cache)**: o que acontece se o produto for atualizado no banco e o Redis continuar servindo a versão antiga? Demonstrado (e corrigido) na Fase 10 — ver `public/editar_produto.php`.
+- **Cache de item único vs. cache de listagem**: são estratégias de chave e invalidação bem diferentes, e misturar as duas é uma fonte comum de bug. Tratado na Fase 9 (`listarPaginadoComCache()`) e na invalidação em cascata da Fase 10.
+- **Cache stampede** (ou "dog-piling"): quando o cache de um dado muito acessado expira, e várias requisições simultâneas caem no MySQL ao mesmo tempo pra reconstruir o mesmo cache — na prática, recriando o problema que o cache deveria resolver, só que de forma concentrada. Tratado na Fase 11 — ver a seção abaixo.
 
 Essas três situações são clássicas e frequentemente ignoradas em tutoriais de cache que só mostram o caminho feliz.
+
+## Cache stampede: medindo o problema e a correção
+
+### O achado antes mesmo de medir
+
+Ao montar o teste de stampede, descobrimos que o pool do PHP-FPM estava configurado com `pm.max_children = 5` (o padrão da imagem oficial do PHP) — bem abaixo dos 20-50 usados nos nossos benchmarks de concorrência. Na prática, isso significa que boa parte das "requisições simultâneas" dos testes anteriores (Fases 6 e 7) estava **enfileirada** esperando um processo do PHP-FPM ficar livre, e não rodando em paralelo de verdade. Corrigimos isso no `docker/php/Dockerfile`, subindo o limite pra 30 processos simultâneos — sem essa correção, a demonstração de stampede abaixo seria bem mais fraca (ou até invisível).
+
+Essa é, aliás, outra lição de "meça sob a condição real do problema": um limite de infraestrutura escondido pode mascarar tanto o problema quanto o benefício da solução.
+
+### A solução: lock no Redis
+
+`ProdutoRepository::buscarPorIdComProtecaoContraStampede()` usa um lock (trava) via `SET produto:{id} ... NX EX`: só o primeiro processo a chegar com o cache vazio consegue "trancar a porta" e ir no MySQL; todos os demais esperam um pouco (polling curto, até ~1s) e reaproveitam o cache que esse primeiro processo populou, em vez de irem no MySQL também. Se a espera estourar (algo deu muito errado), existe um fallback que consulta o MySQL direto — melhor responder devagar do que não responder.
+
+### Metodologia e resultados
+
+`benchmark/stampede.php` garante que o cache de um produto está vazio (apagando a chave de propósito, simulando o instante em que o TTL expira) e dispara 30 requisições **verdadeiramente simultâneas** pro mesmo id, contra `produto.php` (sem proteção) e depois contra `produto_protegido.php` (com proteção) — contando, com um contador de verdade no Redis, quantas vezes o MySQL foi consultado em cada cenário.
+
+| Produto testado | Sem proteção (consultas ao MySQL) | Com proteção (consultas ao MySQL) |
+|---|---|---|
+| id=1 | 5 | 1 |
+| id=2 | 6 | 1 |
+| id=3 | 3 | 1 |
+
+Sem proteção, entre 3 e 6 requisições diferentes bateram no MySQL pra responder exatamente a mesma pergunta, feita 30 vezes ao mesmo tempo — o número exato varia a cada execução (depende de quão simultâneas as 30 requisições realmente conseguem chegar), mas nunca foi 1. Com proteção, foi **sempre exatamente 1**, em todas as execuções testadas. Numa tabela maior, numa consulta mais cara, ou com centenas de requisições simultâneas em vez de 30, essa multiplicação sem proteção cresceria proporcionalmente — é exatamente esse tipo de amplificação que transforma "um produto ficou popular" em "o banco caiu".
