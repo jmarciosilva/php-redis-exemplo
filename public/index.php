@@ -60,10 +60,11 @@ if (isset($pdo)) {
 }
 
 // --- Teste 4: dá pra conectar de verdade no Redis? ---
+// Agora usamos o config/redis.php de verdade (Fase 3), em vez de montar a
+// conexão na mão aqui — é exatamente esse arquivo que o ProdutoRepository
+// vai usar mais pra frente pra guardar/buscar produtos em cache.
 try {
-    // A classe Redis vem da extensão que instalamos via PECL no Dockerfile.
-    $redis = new Redis();
-    $redis->connect((string) getenv('REDIS_HOST'), (int) getenv('REDIS_PORT'));
+    $redis = require __DIR__ . '/../config/redis.php';
 
     // Fazemos um SET e um GET de verdade, só pra provar que não é só a conexão
     // que funciona, mas que o Redis está realmente guardando e devolvendo dado.

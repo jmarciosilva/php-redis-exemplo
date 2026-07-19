@@ -14,9 +14,9 @@ Este arquivo mostra todas as fases planejadas pro `php-redis-exemplo`. Conforme 
 - [x] Carga de dados de exemplo (5.000 produtos gerados via `database/gerar_seed.php`, volume suficiente pra tornar o benchmark realista)
 - [x] `config/database.php` — conexão PDO comentada linha a linha (validado via `public/index.php`, que confirmou os 5.000 produtos importados)
 
-## Fase 3 — Conexão com Redis
-- [ ] `config/redis.php` — conexão com extensão `phpredis`, comentada linha a linha
-- [ ] Teste manual simples de `SET`/`GET` pra validar que a conexão funciona
+## Fase 3 — Conexão com Redis ✅
+- [x] `config/redis.php` — conexão com extensão `phpredis`, comentada linha a linha
+- [x] Teste manual simples de `SET`/`GET` pra validar que a conexão funciona (via `redis-cli` direto no container, e também via `public/index.php` usando `config/redis.php`)
 
 ## Fase 4 — Consulta direto no banco (baseline, sem cache)
 - [ ] `src/ProdutoRepository.php` com método que busca produto só no MySQL
