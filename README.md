@@ -41,11 +41,13 @@ php-redis-exemplo/
 │   └── redis.php          # configuração de conexão com o Redis
 ├── src/
 │   ├── ProdutoRepository.php   # onde mora a lógica do Cache-Aside (item único e listagem)
+│   ├── diagnostico.php         # checagens de ambiente (extensões, MySQL, Redis), reaproveitadas por index.php e diagnostico.php
 │   └── views/
 │       ├── cabecalho.php       # <head> + nav, reaproveitado pelas páginas (fora de public/, não é acessível direto)
 │       └── rodape.php          # fecha as tags abertas pelo cabecalho.php
 ├── public/
-│   ├── index.php          # página de diagnóstico do ambiente (extensões, MySQL, Redis)
+│   ├── index.php          # página de diagnóstico do ambiente, com botão "Testar agora" (via JS)
+│   ├── diagnostico.php    # endpoint JSON usado pelo botão "Testar agora"
 │   ├── produtos.php        # listagem de produtos SEM cache (baseline permanente de comparação)
 │   ├── produtos_cache.php  # a mesma listagem, agora COM cache (Cache-Aside), lado a lado com a de cima
 │   ├── performance.php     # dashboard com os números do benchmark + testador ao vivo
@@ -55,7 +57,8 @@ php-redis-exemplo/
 │   ├── limpar_cache.php    # endpoint JSON: força um cache miss num produto (usado pelo testador ao vivo)
 │   └── assets/
 │       ├── css/estilo.css      # CSS puro, compartilhado por todas as páginas
-│       └── js/performance.js   # JS puro do testador ao vivo (fetch + DOM, sem libs)
+│       ├── js/performance.js   # JS puro do testador ao vivo (fetch + DOM, sem libs)
+│       └── js/diagnostico.js   # JS puro do botão "Testar agora" da página de diagnóstico
 ├── database/
 │   ├── produtos.sql        # script de criação da tabela + 10.000 produtos de exemplo (gerado)
 │   └── gerar_seed.php      # gerador do produtos.sql (rodar de novo só se quiser mudar os dados)
