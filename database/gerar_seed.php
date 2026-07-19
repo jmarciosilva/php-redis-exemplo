@@ -5,10 +5,11 @@
  * desenvolvimento que a gente roda só UMA VEZ pra gerar o arquivo
  * database/produtos.sql (com a tabela + os dados de exemplo).
  *
- * Por que gerar via PHP em vez de escrever as 5 mil linhas de INSERT na mão?
+ * Por que gerar via PHP em vez de escrever as 10 mil linhas de INSERT na mão?
  * Porque pra testar performance/cache de forma realista, "3 produtos de
  * exemplo" não é suficiente — precisamos de um volume razoável de dados
- * (aqui: 5.000 produtos) pra simular uma tabela de verdade.
+ * (aqui: 10.000 produtos) pra simular uma tabela mais próxima do que se vê
+ * numa aplicação de verdade no mercado.
  *
  * Como rodar (de dentro do container do PHP, já que é lá que o PHP existe):
  *   docker compose exec php php database/gerar_seed.php > database/produtos.sql
@@ -22,10 +23,10 @@ declare(strict_types=1);
 
 // Quantidade de produtos fake que vamos gerar. Dá pra aumentar esse número
 // se quiser testar com uma tabela ainda maior mais pra frente.
-const QUANTIDADE_PRODUTOS = 5000;
+const QUANTIDADE_PRODUTOS = 10000;
 
 // Quantos INSERTs a gente agrupa em uma única instrução SQL.
-// Fazer 5.000 instruções INSERT separadas seria válido, mas bem mais lento
+// Fazer 10.000 instruções INSERT separadas seria válido, mas bem mais lento
 // de importar do que agrupar várias linhas dentro de um único INSERT.
 const TAMANHO_DO_LOTE = 500;
 

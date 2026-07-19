@@ -1,0 +1,426 @@
+/*
+ * Uma folha de estilo só, compartilhada por todas as páginas (index.php,
+ * produtos.php, performance.php). Sem framework nenhum (Bootstrap,
+ * Tailwind, etc) — CSS puro, pra manter a mesma linha do resto do
+ * projeto: nada escondido, dá pra ler e entender cada regra.
+ *
+ * As cores usadas aqui (inclusive as de "status", tipo verde/vermelho)
+ * seguem uma paleta pensada pra ser acessível: contraste mínimo garantido
+ * e cores que continuam distinguíveis pra quem tem daltonismo. Por isso a
+ * gente NUNCA usa só a cor pra transmitir uma informação (por exemplo, os
+ * badges de "Redis"/"MySQL" sempre vêm com um ícone + texto, nunca só a
+ * cor de fundo).
+ */
+
+/* --- Variáveis de cor: modo claro (padrão) e escuro --- */
+:root {
+    color-scheme: light;
+
+    --superficie: #fcfcfb;        /* fundo dos cards/tabelas */
+    --plano-de-fundo: #f9f9f7;    /* fundo geral da página */
+    --tinta-primaria: #0b0b0b;    /* texto principal */
+    --tinta-secundaria: #52514e;  /* texto de apoio */
+    --tinta-fraca: #898781;       /* legendas, textos bem discretos */
+    --linha-grade: #e1e0d9;       /* linhas finas de grade/divisórias */
+    --linha-base: #c3c2b7;        /* eixo/base de gráficos */
+    --borda: rgba(11, 11, 11, 0.10);
+
+    --marca: #2a78d6;             /* cor de destaque da marca (links, botões) */
+    --marca-hover: #184f95;
+
+    /* Cores de "status" (fixas, com significado reservado: nunca usamos
+       essas cores pra outra coisa que não seja "isso é bom" / "isso é
+       ruim"). Sempre acompanhadas de ícone + texto, nunca sozinhas. */
+    --status-bom: #0ca30c;
+    --status-bom-fundo: rgba(12, 163, 12, 0.12);
+    --status-critico: #d03b3b;
+    --status-critico-fundo: rgba(208, 59, 59, 0.12);
+    --status-aviso: #fab219;
+    --status-aviso-fundo: rgba(250, 178, 25, 0.15);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        color-scheme: dark;
+
+        --superficie: #1a1a19;
+        --plano-de-fundo: #0d0d0d;
+        --tinta-primaria: #ffffff;
+        --tinta-secundaria: #c3c2b7;
+        --tinta-fraca: #898781;
+        --linha-grade: #2c2c2a;
+        --linha-base: #383835;
+        --borda: rgba(255, 255, 255, 0.10);
+
+        --marca: #3987e5;
+        --marca-hover: #86b6ef;
+
+        --status-bom: #0ca30c;
+        --status-bom-fundo: rgba(12, 163, 12, 0.20);
+        --status-critico: #d03b3b;
+        --status-critico-fundo: rgba(208, 59, 59, 0.20);
+        --status-aviso: #fab219;
+        --status-aviso-fundo: rgba(250, 178, 25, 0.20);
+    }
+}
+
+/* --- Reset básico --- */
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background-color: var(--plano-de-fundo);
+    color: var(--tinta-primaria);
+    line-height: 1.5;
+}
+
+a {
+    color: var(--marca);
+}
+
+a:hover {
+    color: var(--marca-hover);
+}
+
+.container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 1.5rem 3rem;
+}
+
+/* --- Navegação --- */
+.nav-topo {
+    background-color: var(--superficie);
+    border-bottom: 1px solid var(--borda);
+    margin-bottom: 2rem;
+}
+
+.nav-topo .container {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    margin-bottom: 0;
+}
+
+.nav-topo .marca {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--tinta-primaria);
+    text-decoration: none;
+}
+
+.nav-topo ul {
+    list-style: none;
+    display: flex;
+    gap: 1.5rem;
+    margin: 0;
+    padding: 0;
+}
+
+.nav-topo a {
+    text-decoration: none;
+    color: var(--tinta-secundaria);
+    font-weight: 500;
+}
+
+.nav-topo a:hover,
+.nav-topo a.ativo {
+    color: var(--marca);
+}
+
+/* --- Cabeçalho de página --- */
+.cabecalho-pagina {
+    margin-bottom: 2rem;
+}
+
+.cabecalho-pagina h1 {
+    margin: 0 0 0.4rem;
+    font-size: 1.75rem;
+}
+
+.cabecalho-pagina p {
+    margin: 0;
+    color: var(--tinta-secundaria);
+}
+
+/* --- Cards --- */
+.card {
+    background-color: var(--superficie);
+    border: 1px solid var(--borda);
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+/* --- Aviso/callout informativo --- */
+.aviso {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    background-color: var(--status-aviso-fundo);
+    border: 1px solid var(--status-aviso);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.aviso .icone {
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
+/* --- Tabela --- */
+.tabela-wrapper {
+    overflow-x: auto; /* evita que a tabela quebre o layout em telas estreitas */
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+thead th {
+    text-align: left;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--tinta-fraca);
+    border-bottom: 1px solid var(--linha-grade);
+    padding: 0.6rem 0.75rem;
+}
+
+tbody td {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--linha-grade);
+}
+
+tbody tr:hover {
+    background-color: var(--status-aviso-fundo);
+    background-color: color-mix(in srgb, var(--marca) 6%, transparent);
+}
+
+.numerico {
+    font-variant-numeric: tabular-nums; /* alinha os dígitos em colunas de números */
+    text-align: right;
+}
+
+/* --- Badges de origem (Redis / MySQL) --- */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.badge-redis {
+    background-color: var(--status-bom-fundo);
+    color: var(--status-bom);
+}
+
+.badge-mysql {
+    background-color: var(--status-critico-fundo);
+    color: var(--status-critico);
+}
+
+/* --- Formulários --- */
+select,
+input[type="number"] {
+    font: inherit;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--linha-grade);
+    border-radius: 6px;
+    background-color: var(--superficie);
+    color: var(--tinta-primaria);
+}
+
+.botao {
+    font: inherit;
+    font-weight: 600;
+    padding: 0.55rem 1.1rem;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    background-color: var(--marca);
+    color: #ffffff;
+}
+
+.botao:hover {
+    background-color: var(--marca-hover);
+}
+
+.botao-fantasma {
+    background-color: transparent;
+    color: var(--tinta-secundaria);
+    border-color: var(--linha-grade);
+}
+
+.botao-fantasma:hover {
+    color: var(--tinta-primaria);
+    background-color: var(--status-aviso-fundo);
+    background-color: color-mix(in srgb, var(--tinta-primaria) 6%, transparent);
+}
+
+.linha-formulario {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+/* --- Paginação --- */
+.paginacao {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 1.5rem;
+}
+
+.paginacao a,
+.paginacao span {
+    display: inline-block;
+    padding: 0.4rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--linha-grade);
+    text-decoration: none;
+    color: var(--tinta-secundaria);
+}
+
+.paginacao .atual {
+    background-color: var(--marca);
+    border-color: var(--marca);
+    color: #ffffff;
+    font-weight: 600;
+}
+
+/* --- Placar / KPIs (números grandes de destaque) --- */
+.placar-grade {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.placar-numero {
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 0.35rem;
+}
+
+.placar-rotulo {
+    color: var(--tinta-secundaria);
+    font-size: 0.9rem;
+}
+
+/* --- Gráfico de barras horizontais (feito só com CSS, sem lib) --- */
+.grafico-barra-linha {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.9rem;
+}
+
+.grafico-barra-linha .rotulo-serie {
+    width: 110px;
+    flex-shrink: 0;
+    font-size: 0.85rem;
+    color: var(--tinta-secundaria);
+}
+
+.grafico-barra-trilha {
+    flex-grow: 1;
+    background-color: var(--linha-grade);
+    border-radius: 4px;
+    height: 20px; /* limite de espessura recomendado pra barras */
+    position: relative;
+}
+
+.grafico-barra-preenchimento {
+    height: 100%;
+    border-radius: 4px;
+}
+
+.grafico-barra-preenchimento.cor-critica {
+    background-color: var(--status-critico);
+}
+
+.grafico-barra-preenchimento.cor-boa {
+    background-color: var(--status-bom);
+}
+
+/* O valor fica FORA da barra (à direita da trilha), não dentro do
+   preenchimento — assim o rótulo nunca corre o risco de não caber quando
+   a barra for curta (ver marks-and-anatomy: nunca cortar/espremer texto). */
+.grafico-barra-valor {
+    width: 90px;
+    flex-shrink: 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--tinta-primaria);
+}
+
+.grafico-legenda {
+    display: flex;
+    gap: 1.25rem;
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--tinta-secundaria);
+}
+
+.grafico-legenda .item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.grafico-legenda .amostra {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    display: inline-block;
+}
+
+/* --- Testador ao vivo (performance.php) --- */
+.resultado-teste {
+    border: 1px solid var(--linha-grade);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin-top: 1rem;
+}
+
+.historico-testes {
+    list-style: none;
+    margin: 1rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.historico-testes li {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9rem;
+    color: var(--tinta-secundaria);
+    border-bottom: 1px dashed var(--linha-grade);
+    padding-bottom: 0.4rem;
+}
+
+/* --- Rodapé --- */
+footer.rodape {
+    text-align: center;
+    color: var(--tinta-fraca);
+    font-size: 0.85rem;
+    padding: 2rem 0;
+}

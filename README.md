@@ -40,15 +40,25 @@ php-redis-exemplo/
 │   ├── database.php       # configuração de conexão com o MySQL
 │   └── redis.php          # configuração de conexão com o Redis
 ├── src/
-│   └── ProdutoRepository.php  # onde mora a lógica do Cache-Aside
+│   ├── ProdutoRepository.php   # onde mora a lógica do Cache-Aside (item único e listagem)
+│   └── views/
+│       ├── cabecalho.php       # <head> + nav, reaproveitado pelas páginas (fora de public/, não é acessível direto)
+│       └── rodape.php          # fecha as tags abertas pelo cabecalho.php
 ├── public/
-│   ├── index.php          # (temporário) checagem do ambiente Docker, ver Fase 1
-│   └── produto.php        # ponto de entrada (endpoint) da aplicação
+│   ├── index.php          # página de diagnóstico do ambiente (extensões, MySQL, Redis)
+│   ├── produtos.php        # listagem de produtos (tabela, paginação, filtro por categoria)
+│   ├── performance.php     # dashboard com os números do benchmark + testador ao vivo
+│   ├── produto.php         # endpoint JSON: busca 1 produto (Cache-Aside)
+│   ├── limpar_cache.php    # endpoint JSON: força um cache miss num produto (usado pelo testador ao vivo)
+│   └── assets/
+│       ├── css/estilo.css      # CSS puro, compartilhado por todas as páginas
+│       └── js/performance.js   # JS puro do testador ao vivo (fetch + DOM, sem libs)
 ├── database/
-│   ├── produtos.sql        # script de criação da tabela + 5.000 produtos de exemplo (gerado)
+│   ├── produtos.sql        # script de criação da tabela + 10.000 produtos de exemplo (gerado)
 │   └── gerar_seed.php      # gerador do produtos.sql (rodar de novo só se quiser mudar os dados)
 ├── benchmark/
-│   └── benchmark.php      # script que mede tempo médio com e sem cache
+│   ├── benchmark.php           # script que mede tempo médio com e sem cache (requisições concorrentes)
+│   └── ultimo_resultado.json   # resultado da última execução (lido por public/performance.php)
 ├── docker-compose.yml
 ├── .env.example            # modelo das variáveis de ambiente (copiar pra .env)
 ├── ANALISE.md
@@ -73,20 +83,18 @@ docker compose up -d --build
 docker compose ps
 ```
 
-Com tudo no ar, acesse **http://localhost:8080/** — você vai ver uma página de checagem (temporária, só das Fases 1 e 2) confirmando que:
+Com tudo no ar, acesse:
 
-- as extensões `pdo_mysql` e `redis` do PHP estão instaladas;
-- a aplicação conseguiu conectar de verdade no MySQL;
-- a tabela `produtos` existe e já tem os 5.000 produtos de exemplo importados;
-- a aplicação conseguiu conectar de verdade no Redis (e fez um `SET`/`GET` de teste).
-
-Essa página (`public/index.php`) é só um teste de ambiente — a partir da Fase 4 do [ROADMAP.md](ROADMAP.md) ela dá lugar ao endpoint de verdade (`public/produto.php`).
+- **http://localhost:8080/** — diagnóstico do ambiente (extensões PHP, conexão MySQL, seed importado, conexão Redis);
+- **http://localhost:8080/produtos.php** — listagem de produtos, com paginação e filtro por categoria;
+- **http://localhost:8080/performance.php** — dashboard com os números do benchmark e um testador ao vivo (digite um id, veja a origem mudar de `mysql` pra `redis` na segunda busca);
+- **http://localhost:8080/produto.php?id=1** — o endpoint JSON puro (Cache-Aside), se você preferir ver a resposta crua.
 
 > `database/produtos.sql` já vem pronto no repositório (é gerado por `database/gerar_seed.php`, ver seção abaixo) e é executado **automaticamente** pelo MySQL na primeira vez que o container sobe (por isso a pasta `database/` está montada em `/docker-entrypoint-initdb.d` no `docker-compose.yml`). Se você já tinha subido o ambiente antes desse arquivo existir, rode `docker compose down -v` (isso apaga o volume do banco) e suba de novo com `docker compose up -d --build` pra forçar a reimportação.
 
 ## Dados de exemplo (seed)
 
-A tabela `produtos` vem com **5.000 produtos fictícios** (nomes, categorias, preços e estoque gerados aleatoriamente), pra dar volume suficiente pra testar cache e performance de verdade — 3 linhas de exemplo não seriam suficientes pra isso.
+A tabela `produtos` vem com **10.000 produtos fictícios** (nomes, categorias, preços e estoque gerados aleatoriamente), pra dar volume suficiente pra testar cache e performance de verdade — 3 linhas de exemplo não seriam suficientes pra isso.
 
 O arquivo `database/produtos.sql` já está pronto e commitado, mas se quiser regenerá-lo (por exemplo, pra mudar a quantidade de produtos em `database/gerar_seed.php`), rode:
 

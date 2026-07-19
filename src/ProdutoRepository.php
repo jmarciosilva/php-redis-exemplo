@@ -46,6 +46,14 @@ class ProdutoRepository
     // próprio produto.
     private ?string $origemDaUltimaBusca = null;
 
+    // Mesma ideia do $origemDaUltimaBusca, mas pra listagem (listarPaginado()):
+    // guarda se a ÚLTIMA listagem veio do cache ou do banco. Por enquanto
+    // sempre vale 'mysql' (a listagem ainda não usa Redis), mas já deixamos
+    // esse "gancho" pronto agora — assim, quando a Fase 9 adicionar cache
+    // de listagem, a página public/produtos.php (que já lê esse valor pra
+    // mostrar o badge de origem + tempo) não vai precisar mudar NADA.
+    private ?string $origemDaUltimaListagem = null;
+
     public function __construct(PDO $pdo, Redis $redis)
     {
         $this->pdo = $pdo;
@@ -55,6 +63,11 @@ class ProdutoRepository
     public function origemDaUltimaBusca(): ?string
     {
         return $this->origemDaUltimaBusca;
+    }
+
+    public function origemDaUltimaListagem(): ?string
+    {
+        return $this->origemDaUltimaListagem;
     }
 
     /**
@@ -69,7 +82,7 @@ class ProdutoRepository
         // Prefixar com "produto:" é uma convenção comum no Redis (às vezes
         // chamada de "namespacing") — evita que essa chave colida com
         // outras chaves que a gente for criar mais pra frente (por exemplo,
-        // "listagem:categoria:livros" na Fase 8) dentro do mesmo Redis.
+        // "listagem:categoria:livros" na Fase 9) dentro do mesmo Redis.
         $chave = "produto:{$id}";
 
         // --- Passo 1: tenta achar no Redis primeiro ---
@@ -126,5 +139,92 @@ class ProdutoRepository
         $this->redis->setex($chave, self::TTL_CACHE_EM_SEGUNDOS, json_encode($produto));
 
         return $produto;
+    }
+
+    /**
+     * Lista produtos de forma paginada, opcionalmente filtrando por
+     * categoria. Devolve um array com duas chaves:
+     *   'produtos' => a lista de produtos dessa página
+     *   'total'    => quantos produtos existem no TOTAL (com o filtro
+     *                 aplicado), usado pra calcular quantas páginas existem
+     *
+     * IMPORTANTE: esse método AINDA NÃO usa Redis — toda chamada consulta
+     * o MySQL direto. É de propósito: cachear uma LISTA é um problema
+     * diferente de cachear um item único (a chave precisa considerar
+     * página + filtro + tamanho de página, e a invalidação é mais
+     * delicada), e é exatamente disso que trata a próxima fase do projeto.
+     */
+    public function listarPaginado(int $pagina, int $porPagina, ?string $categoria): array
+    {
+        // Por enquanto, toda listagem vem do MySQL — não existe outro
+        // caminho ainda. Na Fase 9, aqui vai entrar um "if" checando o
+        // Redis primeiro, igual já fazemos em buscarPorId().
+        $this->origemDaUltimaListagem = 'mysql';
+
+        // Quantos registros "pular" antes de começar a listar. Ex.: na
+        // página 3, com 20 por página, pulamos os 40 primeiros (páginas 1 e 2).
+        $offset = ($pagina - 1) * $porPagina;
+
+        // Monta a cláusula WHERE só se um filtro de categoria foi informado.
+        // Como isso vira parte do TEXTO do SQL (não um valor), a gente
+        // constrói com cuidado: aqui só entra uma string fixa nossa
+        // ("WHERE categoria = :categoria"), nunca o valor da categoria em
+        // si — o valor de verdade sempre entra depois, via bindValue.
+        $condicaoCategoria = $categoria !== null ? 'WHERE categoria = :categoria' : '';
+
+        $consulta = $this->pdo->prepare(
+            "SELECT id, nome, categoria, preco, estoque
+             FROM produtos
+             {$condicaoCategoria}
+             ORDER BY id
+             LIMIT :limite OFFSET :offset"
+        );
+
+        if ($categoria !== null) {
+            $consulta->bindValue(':categoria', $categoria, PDO::PARAM_STR);
+        }
+
+        // LIMIT/OFFSET precisam ser ligados como inteiro (PDO::PARAM_INT):
+        // se fossem ligados como string (o padrão do bindValue), o MySQL
+        // pode rejeitar a consulta, porque LIMIT/OFFSET não aceitam texto.
+        $consulta->bindValue(':limite', $porPagina, PDO::PARAM_INT);
+        $consulta->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $consulta->execute();
+
+        $produtos = $consulta->fetchAll();
+
+        // Segunda consulta, só pra saber o TOTAL de produtos (sem LIMIT),
+        // necessária pra calcular quantas páginas existem no total.
+        $consultaDoTotal = $this->pdo->prepare(
+            "SELECT COUNT(*) FROM produtos {$condicaoCategoria}"
+        );
+
+        if ($categoria !== null) {
+            $consultaDoTotal->bindValue(':categoria', $categoria, PDO::PARAM_STR);
+        }
+
+        $consultaDoTotal->execute();
+        $total = (int) $consultaDoTotal->fetchColumn();
+
+        return [
+            'produtos' => $produtos,
+            'total' => $total,
+        ];
+    }
+
+    /**
+     * Lista as categorias distintas que existem na tabela, em ordem
+     * alfabética — usado pra montar o filtro (<select>) da página de
+     * produtos.
+     */
+    public function listarCategorias(): array
+    {
+        $consulta = $this->pdo->query('SELECT DISTINCT categoria FROM produtos ORDER BY categoria');
+
+        // fetchAll(PDO::FETCH_COLUMN) devolve só a primeira coluna de cada
+        // linha, direto como uma lista simples de strings — em vez de um
+        // array de arrays associativos (que seria ['categoria' => 'X']
+        // repetido pra cada item, e a gente teria que extrair na mão).
+        return $consulta->fetchAll(PDO::FETCH_COLUMN);
     }
 }

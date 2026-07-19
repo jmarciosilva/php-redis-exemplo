@@ -231,3 +231,23 @@ printf(
 $vezesMaisRapido = $estatisticasSemCache['media'] / $estatisticasComCache['media'];
 
 echo "\nCom cache, a média ficou " . number_format($vezesMaisRapido, 1) . "x mais rápida que sem cache.\n";
+
+// --- Guarda o resultado num arquivo JSON ---
+// A página public/performance.php lê esse arquivo pra mostrar um gráfico
+// no navegador com o resultado da ÚLTIMA vez que o benchmark rodou —
+// assim, sempre que alguém rodar o benchmark de novo (com outros
+// parâmetros), o dashboard se atualiza sozinho, sem precisar editar nada
+// na mão.
+$resultado = [
+    'gerado_em' => date('Y-m-d H:i:s'),
+    'total_de_lotes' => $totalDeLotes,
+    'requisicoes_simultaneas_por_lote' => $requisicoesSimultaneasPorLote,
+    'total_de_requisicoes_por_cenario' => $totalDeRequisicoesPorCenario,
+    'sem_cache' => $estatisticasSemCache,
+    'com_cache' => $estatisticasComCache,
+    'vezes_mais_rapido' => $vezesMaisRapido,
+];
+
+file_put_contents(__DIR__ . '/ultimo_resultado.json', json_encode($resultado, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+echo "\nResultado salvo em benchmark/ultimo_resultado.json (usado pela página /performance.php).\n";

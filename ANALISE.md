@@ -57,7 +57,7 @@ Teoria sem número é só opinião. Por isso construímos um script de benchmark
 
 ### Uma descoberta importante no caminho
 
-Na primeira versão do benchmark, a gente disparava as requisições **uma de cada vez, sequencialmente** — e a diferença entre "com cache" e "sem cache" praticamente não aparecia (às vezes o cache até dava uma média pior!). Por quê? Porque nossa tabela `produtos` tem só 5.000 linhas e a busca é por chave primária indexada — pro MySQL, isso é uma consulta trivial, respondida em menos de 1ms. Testando uma requisição isolada de cada vez, não tem gargalo nenhum pra resolver.
+Na primeira versão do benchmark, a gente disparava as requisições **uma de cada vez, sequencialmente** — e a diferença entre "com cache" e "sem cache" praticamente não aparecia (às vezes o cache até dava uma média pior!). Por quê? Porque nossa tabela `produtos` tem só 10.000 linhas e a busca é por chave primária indexada — pro MySQL, isso é uma consulta trivial, respondida em menos de 1ms. Testando uma requisição isolada de cada vez, não tem gargalo nenhum pra resolver.
 
 O problema de cache que motivou esse projeto (ver [Contexto](#contexto)) nunca foi "uma consulta isolada é lenta" — é **muitas requisições simultâneas disputando a mesma conexão/lock do banco**. Só quando reescrevemos o benchmark pra disparar lotes de requisições **concorrentes** (várias ao mesmo tempo, competindo entre si) é que o MySQL começou a mostrar degradação de verdade, e o Redis passou a se destacar. É um lembrete valioso: **meça sob a condição real do problema, não sob a condição mais conveniente de medir.**
 

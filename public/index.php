@@ -1,11 +1,11 @@
 <?php
 
 /*
- * ATENÇÃO: esse arquivo é TEMPORÁRIO! Ele existe só pra Fase 1 (ambiente Docker),
- * pra você conseguir confirmar que Nginx + PHP-FPM + MySQL + Redis estão todos
- * conversando entre si antes da gente escrever qualquer regra de negócio de verdade.
- * Nas próximas fases (a partir da Fase 4), esse conteúdo vai ser substituído pelo
- * endpoint de produto de verdade (public/produto.php).
+ * Página de diagnóstico do ambiente: nasceu na Fase 1 só pra confirmar que
+ * Nginx + PHP-FPM + MySQL + Redis estavam todos conversando entre si, e
+ * continua útil como uma "página de saúde" do projeto — se algum dia algo
+ * parar de funcionar depois de mexer no Docker, é aqui que você confere
+ * o que quebrou primeiro.
  */
 
 // declare(strict_types=1) faz o PHP ser "rígido" com os tipos das variáveis
@@ -80,24 +80,39 @@ try {
 
 // Define que a resposta vai ser HTML (só pra ficar mais fácil de ler no navegador).
 header('Content-Type: text/html; charset=utf-8');
+
+$tituloDaPagina = 'Diagnóstico do ambiente';
+$subtituloDaPagina = 'Checagem rápida de que Nginx + PHP-FPM + MySQL + Redis estão todos conversando entre si.';
+$paginaAtiva = 'inicio';
+require __DIR__ . '/../src/views/cabecalho.php';
 ?>
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <title>Ambiente Docker - php-redis-exemplo</title>
-</head>
-<body style="font-family: sans-serif; padding: 2rem;">
-    <h1>Checagem do ambiente Docker</h1>
-    <p>Página temporária da Fase 1, só pra confirmar que tudo está de pé.</p>
-    <ul>
-        <?php foreach ($testes as $nome => $resultado): ?>
-            <li>
-                <?= $resultado['ok'] ? '✅' : '❌' ?>
-                <strong><?= htmlspecialchars($nome) ?>:</strong>
-                <?= htmlspecialchars($resultado['mensagem']) ?>
-            </li>
-        <?php endforeach; ?>
-    </ul>
-</body>
-</html>
+
+<div class="card">
+    <div class="tabela-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Situação</th>
+                    <th>Verificação</th>
+                    <th>Detalhe</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($testes as $nome => $resultado): ?>
+                    <tr>
+                        <td><?= $resultado['ok'] ? '✅' : '❌' ?></td>
+                        <td><strong><?= htmlspecialchars($nome) ?></strong></td>
+                        <td><?= htmlspecialchars($resultado['mensagem']) ?></td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<p style="color: var(--tinta-secundaria);">
+    Quer ver a aplicação de verdade? Veja a <a href="/produtos.php">listagem de produtos</a> ou o
+    <a href="/performance.php">dashboard de performance</a>.
+</p>
+
+<?php require __DIR__ . '/../src/views/rodape.php'; ?>

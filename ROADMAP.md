@@ -11,8 +11,8 @@ Este arquivo mostra todas as fases planejadas pro `php-redis-exemplo`. Conforme 
 
 ## Fase 2 — Base de dados ✅
 - [x] `database/produtos.sql` com criação da tabela `produtos`
-- [x] Carga de dados de exemplo (5.000 produtos gerados via `database/gerar_seed.php`, volume suficiente pra tornar o benchmark realista)
-- [x] `config/database.php` — conexão PDO comentada linha a linha (validado via `public/index.php`, que confirmou os 5.000 produtos importados)
+- [x] Carga de dados de exemplo (10.000 produtos gerados via `database/gerar_seed.php`, volume suficiente pra tornar o benchmark realista)
+- [x] `config/database.php` — conexão PDO comentada linha a linha (validado via `public/index.php`, que confirmou os 10.000 produtos importados)
 
 ## Fase 3 — Conexão com Redis ✅
 - [x] `config/redis.php` — conexão com extensão `phpredis`, comentada linha a linha
@@ -42,28 +42,39 @@ Este arquivo mostra todas as fases planejadas pro `php-redis-exemplo`. Conforme 
 - [x] Substituir a tabela placeholder do `ANALISE.md` pelos resultados reais
 - [x] Comentar o que os números mostram (e onde o cache ajuda mais ou menos) — inclusive o aprendizado de que requisições sequenciais não revelam o problema; só concorrência real mostra a vantagem do cache (1,5x–1,6x mais rápido na média, vantagem absoluta crescendo com a concorrência)
 
-## Fase 8 — Cache de listagem de produtos
-- [ ] Endpoint (ou método) que lista vários produtos (ex.: por categoria)
+## Fase 8 — Interface visual (views) ✅
+- [x] `public/assets/css/estilo.css` — CSS puro (sem framework), com suporte a modo claro/escuro
+- [x] Cabeçalho/rodapé reaproveitados entre páginas (`src/views/cabecalho.php`, `src/views/rodape.php`, fora de `public/` por segurança)
+- [x] `public/produtos.php` — listagem de produtos em tabela, com paginação e filtro por categoria (ainda sem cache, de propósito — prepara o terreno pra Fase 9)
+- [x] `public/performance.php` — dashboard com os números do último benchmark (lidos de `benchmark/ultimo_resultado.json`) e um "testador ao vivo" (id → busca via JS → mostra origem Redis/MySQL e tempo)
+- [x] `public/limpar_cache.php` — endpoint de apoio pro testador ao vivo, força um cache miss sob demanda
+- [x] `public/index.php` restilizado com o mesmo layout, virando a "página de diagnóstico" do projeto
+- [x] `ProdutoRepository` ganhou `listarPaginado()` e `listarCategorias()` (ainda sem cache)
+- [x] Contador visual de origem/tempo em `produtos.php` (badge MySQL/Redis + ms), usando `origemDaUltimaListagem()` — já preparado pra virar "Redis" sozinho assim que a Fase 9 adicionar cache, sem precisar mexer no HTML
+- [x] Seed aumentado de 5.000 para **10.000 produtos**, mais próximo de uma tabela real de mercado
+
+## Fase 9 — Cache de listagem de produtos
+- [ ] Cachear a consulta de `listarPaginado()` (usada por `public/produtos.php`)
 - [ ] Discutir por que cachear uma lista é diferente de cachear um item único (chave, tamanho do dado, TTL menor, paginação)
 - [ ] Implementar o cache da listagem
 
-## Fase 9 — Invalidação de cache
+## Fase 10 — Invalidação de cache
 - [ ] Endpoint (ou script) que simula atualização de um produto no MySQL
 - [ ] Ao atualizar, invalidar (ou atualizar) a chave correspondente no Redis
 - [ ] Explicar o risco de dado desatualizado (stale) se isso não for feito
 - [ ] Cobrir também o impacto na listagem (invalidar item único não basta se existe cache de lista)
 
-## Fase 10 — Cache stampede
+## Fase 11 — Cache stampede
 - [ ] Demonstrar o problema: TTL expira e várias requisições simultâneas caem no MySQL ao mesmo tempo
 - [ ] Implementar uma solução simples (ex.: lock/mutex no Redis, ou jitter no TTL)
 - [ ] Comparar comportamento antes/depois da correção (se possível, com o benchmark)
 
-## Fase 11 — Revisão geral
+## Fase 12 — Revisão geral
 - [ ] Revisar todos os comentários do código (clareza, tom, consistência em PT-BR)
 - [ ] Revisar README.md com instruções finais de como rodar tudo
 - [ ] Conferir se ANALISE.md reflete o projeto final (não só o rascunho inicial)
 
-## Fase 12 — Publicação
+## Fase 13 — Publicação
 - [ ] Escrever o post do blog usando este repositório como base
 - [ ] (Opcional) Subir uma demo hospedada
 - [ ] Atualizar o README.md com o link do post e/ou da demo
