@@ -51,21 +51,35 @@ Retorna cache    Consulta MySQL
 
 Isso reduz drasticamente o número de consultas ao banco quando o mesmo dado é pedido várias vezes seguidas.
 
-## O que vamos medir (benchmark)
+## O que medimos (benchmark)
 
-Teoria sem número é só opinião. Por isso, além do código, vamos ter um script de benchmark (`benchmark/benchmark.php`, ver [ROADMAP.md](ROADMAP.md)) que:
+Teoria sem número é só opinião. Por isso construímos um script de benchmark (`benchmark/benchmark.php`) que dispara lotes de requisições **concorrentes** (de verdade, em paralelo, via `curl_multi`) contra o endpoint `produto.php`, sorteando entre 5 "produtos populares" — simulando várias pessoas pedindo os mesmos produtos ao mesmo tempo.
 
-1. Dispara **N requisições sequenciais e/ou concorrentes** contra o endpoint de produto.
-2. Roda o teste **sem cache** (forçando sempre ir no MySQL).
-3. Roda o teste **com cache** (Redis já aquecido).
-4. Compara: tempo médio de resposta, tempo total, e (se possível) requisições por segundo.
+### Uma descoberta importante no caminho
 
-> ⚠️ Os números abaixo são um placeholder. Assim que o ambiente Docker e o benchmark estiverem prontos, esta seção vai ser substituída pelos resultados reais coletados localmente.
+Na primeira versão do benchmark, a gente disparava as requisições **uma de cada vez, sequencialmente** — e a diferença entre "com cache" e "sem cache" praticamente não aparecia (às vezes o cache até dava uma média pior!). Por quê? Porque nossa tabela `produtos` tem só 5.000 linhas e a busca é por chave primária indexada — pro MySQL, isso é uma consulta trivial, respondida em menos de 1ms. Testando uma requisição isolada de cada vez, não tem gargalo nenhum pra resolver.
 
-| Cenário       | Tempo médio por requisição | Observações |
-|---------------|----------------------------|-------------|
-| Sem cache     | _a preencher_               | toda requisição bate no MySQL |
-| Com cache     | _a preencher_               | dado servido direto do Redis |
+O problema de cache que motivou esse projeto (ver [Contexto](#contexto)) nunca foi "uma consulta isolada é lenta" — é **muitas requisições simultâneas disputando a mesma conexão/lock do banco**. Só quando reescrevemos o benchmark pra disparar lotes de requisições **concorrentes** (várias ao mesmo tempo, competindo entre si) é que o MySQL começou a mostrar degradação de verdade, e o Redis passou a se destacar. É um lembrete valioso: **meça sob a condição real do problema, não sob a condição mais conveniente de medir.**
+
+### Metodologia
+
+1. Um "produto popular" é sorteado (entre 5 ids fixos) a cada requisição.
+2. **Cenário "sem cache"**: antes de cada lote, apagamos as chaves do Redis — toda requisição do lote é forçada a ir no MySQL.
+3. **Cenário "com cache"**: as chaves não são apagadas — depois dos primeiros acertos, a grande maioria das requisições vem do Redis (Cache-Aside normal).
+4. Cada lote dispara N requisições **verdadeiramente simultâneas** (via `curl_multi`), repetido por vários lotes.
+
+### Resultados (ambiente local, Docker Desktop/Windows)
+
+| Concorrência (por lote) | Cenário   | Média (ms) | Mín (ms) | Máx (ms) | p95 (ms) |
+|--------------------------|-----------|------------|----------|----------|----------|
+| 20 simultâneas           | Sem cache | 69,15      | 33,81    | 188,17   | 133,14   |
+| 20 simultâneas           | Com cache | 42,41      | 25,36    | 86,46    | 79,14    |
+| 50 simultâneas           | Sem cache | 179,11     | 80,62    | 340,05   | 322,50   |
+| 50 simultâneas           | Com cache | 121,27     | 65,14    | 254,51   | 234,07   |
+
+**Com cache, a média ficou entre 1,5x e 1,6x mais rápida** nos dois níveis de concorrência testados — e repare que a diferença ABSOLUTA cresce junto com a concorrência (27ms de diferença com 20 simultâneas, 58ms com 50 simultâneas): o MySQL degrada mais rápido que o Redis à medida que a carga simultânea aumenta. Esse é o comportamento que se agravaria ainda mais numa tabela maior, com consultas mais custosas (joins, agregações) ou com muito mais usuários simultâneos do que testamos aqui — o que reforça por que, em produção, "poucos problemas" de cache mal dimensionado viram incidentes grandes rapidamente.
+
+> Números exatos variam conforme a máquina, mas o padrão (cache ganhando e a vantagem crescendo com a concorrência) é reproduzível — rode você mesmo com `docker compose exec php php benchmark/benchmark.php` e compare.
 
 ## Problemas de cache que também vamos abordar (não só o "feliz")
 

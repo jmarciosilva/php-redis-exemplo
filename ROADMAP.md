@@ -31,15 +31,16 @@ Este arquivo mostra todas as fases planejadas pro `php-redis-exemplo`. Conforme 
 - [x] Comentários explicando cada decisão (por que esse TTL, por que essa chave, etc.)
 - [x] Testado na prática: 1ª chamada (miss) ~24,6ms via MySQL, 2ª chamada (hit) ~2,6ms via Redis — quase 10x mais rápido — com TTL de 300s confirmado via `redis-cli ttl`
 
-## Fase 6 — Benchmark comparativo
-- [ ] `benchmark/benchmark.php` — script PHP que dispara N requisições e mede tempo médio
-- [ ] Rodar cenário "sem cache" e "com cache"
-- [ ] Documentar como rodar o benchmark no README
+## Fase 6 — Benchmark comparativo ✅
+- [x] `benchmark/benchmark.php` — script PHP que dispara lotes de requisições **concorrentes** (via `curl_multi`) e mede tempo médio, mínimo, máximo e p95
+- [x] Rodar cenário "sem cache" e "com cache"
+- [x] Documentar como rodar o benchmark no README
+- [x] Extensão `curl` adicionada ao Dockerfile do PHP (necessária pro `curl_multi`, só usado pelo benchmark)
 
-## Fase 7 — Números reais no ANALISE.md
-- [ ] Rodar o benchmark localmente e coletar os números
-- [ ] Substituir a tabela placeholder do `ANALISE.md` pelos resultados reais
-- [ ] Comentar o que os números mostram (e onde o cache ajuda mais ou menos)
+## Fase 7 — Números reais no ANALISE.md ✅
+- [x] Rodar o benchmark localmente e coletar os números
+- [x] Substituir a tabela placeholder do `ANALISE.md` pelos resultados reais
+- [x] Comentar o que os números mostram (e onde o cache ajuda mais ou menos) — inclusive o aprendizado de que requisições sequenciais não revelam o problema; só concorrência real mostra a vantagem do cache (1,5x–1,6x mais rápido na média, vantagem absoluta crescendo com a concorrência)
 
 ## Fase 8 — Cache de listagem de produtos
 - [ ] Endpoint (ou método) que lista vários produtos (ex.: por categoria)

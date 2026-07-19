@@ -97,7 +97,20 @@ docker compose down -v && docker compose up -d --build
 
 ## Como rodar o benchmark
 
-> ⚠️ Detalhes vêm junto com a fase de benchmark do roadmap. A ideia é ter um script PHP simples (`benchmark/benchmark.php`) que dispara N requisições contra o endpoint com e sem cache habilitado, e imprime o tempo médio de resposta — sem depender de ferramentas externas, pra ficar fácil de rodar em qualquer máquina.
+O script `benchmark/benchmark.php` compara "com cache" e "sem cache" na prática, disparando lotes de requisições **concorrentes** (via `curl_multi`, sem depender de ferramentas externas tipo `ab`/`wrk`) contra o endpoint `produto.php`. Rode de dentro do container do PHP:
+
+```bash
+docker compose exec php php benchmark/benchmark.php
+```
+
+Por padrão ele roda 30 lotes de 20 requisições simultâneas por cenário. Dá pra ajustar os dois parâmetros (lotes e concorrência por lote):
+
+```bash
+docker compose exec php php benchmark/benchmark.php 20 50
+# 20 lotes de 50 requisições simultâneas = 1.000 requisições por cenário
+```
+
+> Por que concorrente, e não uma requisição de cada vez? Ver a explicação completa em [ANALISE.md](ANALISE.md) — resumindo: com uma tabela pequena e busca indexada, o MySQL responde rápido demais pra mostrar diferença quando testado sequencialmente. O gargalo real (e o que o cache resolve) só aparece com várias requisições simultâneas disputando a mesma conexão do banco.
 
 ## Licença
 
