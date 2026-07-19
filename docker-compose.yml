@@ -1,0 +1,113 @@
+# Esse arquivo descreve todo o "ambiente" da nossa aplicação: cada serviço abaixo vira
+# um container separado, e o Docker Compose sobe todos eles juntos, já conectados entre si.
+# Repare que não usamos a chave "version:" no topo — nas versões atuais do Docker Compose
+# ela não é mais necessária (e o Compose até avisa que ela está obsoleta).
+
+services:
+
+  # ------------------------------------------------------------------
+  # NGINX: é o servidor web, a "porta de entrada" da nossa aplicação.
+  # ------------------------------------------------------------------
+  nginx:
+    image: nginx:alpine   # imagem oficial do Nginx, na variante "alpine" (bem leve/pequena)
+    container_name: redis_exemplo_nginx
+    ports:
+      # Mapeia a porta 8080 da sua máquina (host) pra porta 80 dentro do container.
+      # Ou seja: você acessa http://localhost:8080 no navegador.
+      - "8080:80"
+    volumes:
+      # Monta a raiz do projeto dentro do container, em /var/www — assim o Nginx
+      # enxerga os mesmos arquivos que você está editando no seu editor de código.
+      - ./:/var/www
+      # Monta o NOSSO arquivo de configuração customizado no lugar do padrão do Nginx.
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      # Só sobe o Nginx depois que o serviço "php" já tiver sido iniciado
+      # (não garante que o PHP-FPM já está 100% pronto, só que o container começou).
+      - php
+    networks:
+      - redis_exemplo_net
+
+  # ------------------------------------------------------------------
+  # PHP: aqui é onde nosso código PHP realmente roda (via PHP-FPM).
+  # ------------------------------------------------------------------
+  php:
+    build:
+      # Ao invés de usar uma imagem pronta, construímos a nossa própria imagem
+      # a partir do Dockerfile que está em docker/php/Dockerfile.
+      context: ./docker/php
+    container_name: redis_exemplo_php
+    volumes:
+      # Mesmo código montado aqui, pro PHP-FPM enxergar os mesmos arquivos que o Nginx.
+      - ./:/var/www
+    environment:
+      # Variáveis de ambiente que o PHP vai usar (em config/database.php e config/redis.php,
+      # nas próximas fases) pra saber COMO se conectar no MySQL e no Redis.
+      # "mysql" e "redis" abaixo são os NOMES DOS SERVIÇOS aqui embaixo neste arquivo —
+      # o Docker Compose cria um DNS interno onde o nome do serviço vira um "endereço".
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - redis_exemplo_net
+
+  # ------------------------------------------------------------------
+  # MYSQL: nosso banco de dados "de verdade", a fonte oficial dos produtos.
+  # ------------------------------------------------------------------
+  mysql:
+    image: mysql:8.0
+    container_name: redis_exemplo_mysql
+    restart: unless-stopped   # se o container cair, o Docker tenta subir ele de novo sozinho
+    environment:
+      # Essas variáveis são lidas pela IMAGEM OFICIAL do MySQL pra se configurar sozinha
+      # na primeira vez que o container sobe (criar banco, usuário e senha).
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    ports:
+      # Expõe a porta do MySQL também pro host, pra você poder conectar com um
+      # cliente MySQL (DBeaver, TablePlus, etc) direto da sua máquina, se quiser.
+      - "3306:3306"
+    volumes:
+      # Volume nomeado (gerenciado pelo Docker) onde o MySQL guarda os dados de verdade.
+      # Sem isso, toda vez que o container fosse recriado, os dados sumiriam.
+      - mysql_data:/var/lib/mysql
+      # Qualquer arquivo .sql colocado em ./database é executado AUTOMATICAMENTE
+      # pelo MySQL na primeira vez que o container sobe (é um comportamento especial
+      # da imagem oficial pra pasta /docker-entrypoint-initdb.d). É aqui que o
+      # database/produtos.sql da Fase 2 vai entrar em ação.
+      - ./database:/docker-entrypoint-initdb.d
+    networks:
+      - redis_exemplo_net
+
+  # ------------------------------------------------------------------
+  # REDIS: nosso cache em memória, o protagonista deste projeto.
+  # ------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: redis_exemplo_redis
+    restart: unless-stopped
+    ports:
+      # Expõe a porta padrão do Redis pro host, útil pra debugar com "redis-cli"
+      # direto da sua máquina enquanto aprende.
+      - "6379:6379"
+    networks:
+      - redis_exemplo_net
+
+# Declaração do volume nomeado usado pelo MySQL lá em cima.
+volumes:
+  mysql_data:
+
+# Rede interna que conecta todos os serviços entre si. Dentro dela, cada serviço
+# enxerga o outro pelo nome (ex.: o PHP consegue acessar "mysql:3306" e "redis:6379").
+networks:
+  redis_exemplo_net:
+    driver: bridge

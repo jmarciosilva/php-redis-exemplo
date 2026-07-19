@@ -1,0 +1,11 @@
+# Arquivo real de variáveis de ambiente (contém as credenciais do SEU ambiente local).
+# Só o .env.example (o modelo) deve ir pro Git.
+.env
+
+# Arquivos de configuração de editores/IDEs, que são específicos de cada pessoa.
+.vscode/
+.idea/
+
+# Arquivos de sistema que o Windows/Mac criam sozinhos e não tem nada a ver com o projeto.
+.DS_Store
+Thumbs.db

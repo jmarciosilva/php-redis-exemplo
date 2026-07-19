@@ -31,19 +31,25 @@ Veja o [ANALISE.md](ANALISE.md) para entender o problema de performance que esta
 
 ```
 php-redis-exemplo/
-├── docker/                # Dockerfiles e configs (nginx, php, etc.)
+├── docker/
+│   ├── php/
+│   │   └── Dockerfile     # imagem do PHP-FPM com as extensões pdo_mysql e redis
+│   └── nginx/
+│       └── default.conf   # config do Nginx apontando pra pasta public/
 ├── config/
 │   ├── database.php       # configuração de conexão com o MySQL
 │   └── redis.php          # configuração de conexão com o Redis
 ├── src/
 │   └── ProdutoRepository.php  # onde mora a lógica do Cache-Aside
 ├── public/
+│   ├── index.php          # (temporário) checagem do ambiente Docker, ver Fase 1
 │   └── produto.php        # ponto de entrada (endpoint) da aplicação
 ├── database/
 │   └── produtos.sql       # script de criação + carga de dados de exemplo
 ├── benchmark/
 │   └── benchmark.php      # script que mede tempo médio com e sem cache
 ├── docker-compose.yml
+├── .env.example            # modelo das variáveis de ambiente (copiar pra .env)
 ├── ANALISE.md
 ├── ROADMAP.md
 └── README.md
@@ -51,22 +57,30 @@ php-redis-exemplo/
 
 ## Como rodar
 
-> ⚠️ Seção será detalhada assim que o `docker-compose.yml` e os serviços estiverem implementados (ver [ROADMAP.md](ROADMAP.md)). Por enquanto, o esqueleto esperado é:
-
 ```bash
 # 1. Clonar o repositório
 git clone git@github.com:jmarciosilva/php-redis-exemplo.git
 cd php-redis-exemplo
 
-# 2. Subir o ambiente (nginx + php-fpm + mysql + redis)
-docker-compose up -d
+# 2. Criar o seu arquivo de variáveis de ambiente a partir do modelo
+cp .env.example .env
 
-# 3. Importar a base de dados de exemplo
-docker exec -i <container-mysql> mysql -u root -p produtos < database/produtos.sql
+# 3. Subir o ambiente (nginx + php-fpm + mysql + redis), construindo as imagens
+docker compose up -d --build
 
-# 4. Acessar a aplicação
-# http://localhost:8080/produto.php?id=1
+# 4. Conferir se os 4 containers estão de pé
+docker compose ps
 ```
+
+Com tudo no ar, acesse **http://localhost:8080/** — você vai ver uma página de checagem (temporária, só da Fase 1) confirmando que:
+
+- as extensões `pdo_mysql` e `redis` do PHP estão instaladas;
+- a aplicação conseguiu conectar de verdade no MySQL;
+- a aplicação conseguiu conectar de verdade no Redis (e fez um `SET`/`GET` de teste).
+
+Essa página (`public/index.php`) é só um teste de ambiente — a partir da Fase 4 do [ROADMAP.md](ROADMAP.md) ela dá lugar ao endpoint de verdade (`public/produto.php`).
+
+> Ainda não existe `database/produtos.sql` (isso é a Fase 2). Assim que ele for criado, o MySQL vai executá-lo **automaticamente** na primeira vez que o container subir (por isso a pasta `database/` já está montada em `/docker-entrypoint-initdb.d` no `docker-compose.yml`). Se você já tinha subido o ambiente antes de o arquivo existir, rode `docker compose down -v` (isso apaga o volume do banco) e suba de novo com `docker compose up -d --build` pra forçar a reimportação.
 
 ## Como rodar o benchmark
 

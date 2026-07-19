@@ -2,12 +2,12 @@
 
 Este arquivo mostra todas as fases planejadas pro `php-redis-exemplo`. Conforme cada fase for concluída, marco o checkbox aqui — assim dá pra acompanhar o progresso do post sem precisar ler o histórico do git inteiro.
 
-## Fase 1 — Ambiente Docker
-- [ ] `docker-compose.yml` com 4 serviços: `nginx`, `php` (PHP-FPM), `mysql`, `redis`
-- [ ] Dockerfile do PHP com as extensões necessárias (`pdo_mysql`, `redis`)
-- [ ] Config do Nginx apontando pra pasta `public/`
-- [ ] Variáveis de ambiente (`.env` ou similar) pra credenciais do banco/redis
-- [ ] Testar `docker-compose up` de ponta a ponta numa máquina limpa
+## Fase 1 — Ambiente Docker ✅
+- [x] `docker-compose.yml` com 4 serviços: `nginx`, `php` (PHP-FPM), `mysql`, `redis`
+- [x] Dockerfile do PHP com as extensões necessárias (`pdo_mysql`, `redis`)
+- [x] Config do Nginx apontando pra pasta `public/`
+- [x] Variáveis de ambiente (`.env` ou similar) pra credenciais do banco/redis
+- [x] Testar `docker-compose up` de ponta a ponta numa máquina limpa (via `public/index.php`, checagem temporária: extensões, conexão MySQL e conexão Redis com SET/GET real — todos passando)
 
 ## Fase 2 — Base de dados
 - [ ] `database/produtos.sql` com criação da tabela `produtos`
