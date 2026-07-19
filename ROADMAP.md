@@ -1,0 +1,66 @@
+# Roadmap do projeto
+
+Este arquivo mostra todas as fases planejadas pro `php-redis-exemplo`. Conforme cada fase for concluída, marco o checkbox aqui — assim dá pra acompanhar o progresso do post sem precisar ler o histórico do git inteiro.
+
+## Fase 1 — Ambiente Docker
+- [ ] `docker-compose.yml` com 4 serviços: `nginx`, `php` (PHP-FPM), `mysql`, `redis`
+- [ ] Dockerfile do PHP com as extensões necessárias (`pdo_mysql`, `redis`)
+- [ ] Config do Nginx apontando pra pasta `public/`
+- [ ] Variáveis de ambiente (`.env` ou similar) pra credenciais do banco/redis
+- [ ] Testar `docker-compose up` de ponta a ponta numa máquina limpa
+
+## Fase 2 — Base de dados
+- [ ] `database/produtos.sql` com criação da tabela `produtos`
+- [ ] Carga de dados de exemplo (volume suficiente pra tornar o benchmark realista, não só 3 linhas)
+- [ ] `config/database.php` — conexão PDO comentada linha a linha
+
+## Fase 3 — Conexão com Redis
+- [ ] `config/redis.php` — conexão com extensão `phpredis`, comentada linha a linha
+- [ ] Teste manual simples de `SET`/`GET` pra validar que a conexão funciona
+
+## Fase 4 — Consulta direto no banco (baseline, sem cache)
+- [ ] `src/ProdutoRepository.php` com método que busca produto só no MySQL
+- [ ] `public/produto.php` funcionando end-to-end sem nenhum cache ainda
+- [ ] Esse é o "estado ruim" que vamos comparar depois no benchmark
+
+## Fase 5 — Cache-Aside básico (item único)
+- [ ] Buscar produto no Redis antes de ir no MySQL
+- [ ] Se não encontrar, consultar MySQL e salvar no Redis com TTL
+- [ ] Definir estratégia de chave (ex.: `produto:{id}`)
+- [ ] Comentários explicando cada decisão (por que esse TTL, por que essa chave, etc.)
+
+## Fase 6 — Benchmark comparativo
+- [ ] `benchmark/benchmark.php` — script PHP que dispara N requisições e mede tempo médio
+- [ ] Rodar cenário "sem cache" e "com cache"
+- [ ] Documentar como rodar o benchmark no README
+
+## Fase 7 — Números reais no ANALISE.md
+- [ ] Rodar o benchmark localmente e coletar os números
+- [ ] Substituir a tabela placeholder do `ANALISE.md` pelos resultados reais
+- [ ] Comentar o que os números mostram (e onde o cache ajuda mais ou menos)
+
+## Fase 8 — Cache de listagem de produtos
+- [ ] Endpoint (ou método) que lista vários produtos (ex.: por categoria)
+- [ ] Discutir por que cachear uma lista é diferente de cachear um item único (chave, tamanho do dado, TTL menor, paginação)
+- [ ] Implementar o cache da listagem
+
+## Fase 9 — Invalidação de cache
+- [ ] Endpoint (ou script) que simula atualização de um produto no MySQL
+- [ ] Ao atualizar, invalidar (ou atualizar) a chave correspondente no Redis
+- [ ] Explicar o risco de dado desatualizado (stale) se isso não for feito
+- [ ] Cobrir também o impacto na listagem (invalidar item único não basta se existe cache de lista)
+
+## Fase 10 — Cache stampede
+- [ ] Demonstrar o problema: TTL expira e várias requisições simultâneas caem no MySQL ao mesmo tempo
+- [ ] Implementar uma solução simples (ex.: lock/mutex no Redis, ou jitter no TTL)
+- [ ] Comparar comportamento antes/depois da correção (se possível, com o benchmark)
+
+## Fase 11 — Revisão geral
+- [ ] Revisar todos os comentários do código (clareza, tom, consistência em PT-BR)
+- [ ] Revisar README.md com instruções finais de como rodar tudo
+- [ ] Conferir se ANALISE.md reflete o projeto final (não só o rascunho inicial)
+
+## Fase 12 — Publicação
+- [ ] Escrever o post do blog usando este repositório como base
+- [ ] (Opcional) Subir uma demo hospedada
+- [ ] Atualizar o README.md com o link do post e/ou da demo
