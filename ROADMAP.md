@@ -24,11 +24,12 @@ Este arquivo mostra todas as fases planejadas pro `php-redis-exemplo`. Conforme 
 - [x] Esse é o "estado ruim" que vamos comparar depois no benchmark (endpoint já devolve `tempo_resposta_ms` pra facilitar essa comparação)
 - [x] Bug extra corrigido: dados do seed vinham com encoding duplicado (mojibake) porque o cliente MySQL usado na importação automática usa `latin1` por padrão — resolvido adicionando `SET NAMES utf8mb4;` no topo do `produtos.sql` gerado
 
-## Fase 5 — Cache-Aside básico (item único)
-- [ ] Buscar produto no Redis antes de ir no MySQL
-- [ ] Se não encontrar, consultar MySQL e salvar no Redis com TTL
-- [ ] Definir estratégia de chave (ex.: `produto:{id}`)
-- [ ] Comentários explicando cada decisão (por que esse TTL, por que essa chave, etc.)
+## Fase 5 — Cache-Aside básico (item único) ✅
+- [x] Buscar produto no Redis antes de ir no MySQL
+- [x] Se não encontrar, consultar MySQL e salvar no Redis com TTL
+- [x] Definir estratégia de chave (`produto:{id}`)
+- [x] Comentários explicando cada decisão (por que esse TTL, por que essa chave, etc.)
+- [x] Testado na prática: 1ª chamada (miss) ~24,6ms via MySQL, 2ª chamada (hit) ~2,6ms via Redis — quase 10x mais rápido — com TTL de 300s confirmado via `redis-cli ttl`
 
 ## Fase 6 — Benchmark comparativo
 - [ ] `benchmark/benchmark.php` — script PHP que dispara N requisições e mede tempo médio

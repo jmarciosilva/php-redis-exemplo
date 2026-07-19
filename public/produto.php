@@ -5,11 +5,12 @@
  *   http://localhost:8080/produto.php?id=42
  * e ele devolve os dados do produto de id 42 em formato JSON.
  *
- * IMPORTANTE: nesta Fase 4, esse arquivo AINDA NÃO usa Redis — toda
- * requisição consulta o MySQL direto, sempre. É de propósito: esse é o
- * "estado ruim" (sem cache) que vamos comparar com o "estado bom" (com
- * cache) lá na Fase 6, quando escrevermos o script de benchmark. Sem essa
- * comparação de antes/depois, o benefício do Redis fica só na teoria.
+ * A partir da Fase 5, esse endpoint usa o padrão Cache-Aside (a lógica
+ * fica dentro do ProdutoRepository): a primeira vez que você pedir um id,
+ * ele vai buscar no MySQL e guardar no Redis; nas próximas vezes (dentro
+ * do tempo de expiração), ele vem direto do Redis — bem mais rápido.
+ * Repare no "tempo_resposta_ms" da resposta: dá pra sentir a diferença já
+ * pedindo o mesmo id duas vezes seguidas no navegador.
  */
 
 declare(strict_types=1);
@@ -44,14 +45,16 @@ if ($id <= 0) {
     exit;
 }
 
-// Aqui abrimos a conexão com o banco (config/database.php já devolve um
-// PDO prontinho) e criamos o repositório passando essa conexão pra ele.
+// Aqui abrimos as duas conexões (config/database.php e config/redis.php já
+// devolvem tudo pronto pra usar) e criamos o repositório passando as duas
+// pra ele.
 $pdo = require __DIR__ . '/../config/database.php';
-$repositorio = new ProdutoRepository($pdo);
+$redis = require __DIR__ . '/../config/redis.php';
+$repositorio = new ProdutoRepository($pdo, $redis);
 
-// A ÚNICA linha que realmente busca o dado. Sem cache: isso aqui SEMPRE
-// dispara uma consulta nova no MySQL, não importa quantas vezes o mesmo
-// id seja pedido em seguida.
+// A ÚNICA linha que realmente busca o dado. Por baixo dos panos, o
+// repositório decide sozinho se vai pegar do Redis ou do MySQL — quem
+// chama aqui nem precisa saber qual dos dois foi usado.
 $produto = $repositorio->buscarPorId($id);
 
 // Se o repositório devolveu null, é porque não existe produto com esse id.
@@ -69,10 +72,10 @@ if ($produto === null) {
 $tempoDeRespostaMs = round((microtime(true) - $inicioDaRequisicao) * 1000, 2);
 
 // Devolve o produto encontrado, junto com metadados úteis pra gente
-// acompanhar performance: de onde veio o dado (por enquanto, sempre "mysql"
-// — na Fase 5 isso vai poder virar "redis") e quanto tempo levou.
+// acompanhar performance: de onde veio o dado ('redis' num cache hit, ou
+// 'mysql' quando precisou consultar o banco) e quanto tempo levou.
 echo json_encode([
-    'origem' => 'mysql', // a partir da Fase 5, pode virar 'redis' quando vier do cache
+    'origem' => $repositorio->origemDaUltimaBusca(),
     'tempo_resposta_ms' => $tempoDeRespostaMs,
     'produto' => $produto,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
