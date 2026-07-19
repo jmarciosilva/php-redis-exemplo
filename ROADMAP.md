@@ -53,10 +53,13 @@ Este arquivo mostra todas as fases planejadas pro `php-redis-exemplo`. Conforme 
 - [x] Contador visual de origem/tempo em `produtos.php` (badge MySQL/Redis + ms), usando `origemDaUltimaListagem()` — já preparado pra virar "Redis" sozinho assim que a Fase 9 adicionar cache, sem precisar mexer no HTML
 - [x] Seed aumentado de 5.000 para **10.000 produtos**, mais próximo de uma tabela real de mercado
 
-## Fase 9 — Cache de listagem de produtos
-- [ ] Cachear a consulta de `listarPaginado()` (usada por `public/produtos.php`)
-- [ ] Discutir por que cachear uma lista é diferente de cachear um item único (chave, tamanho do dado, TTL menor, paginação)
-- [ ] Implementar o cache da listagem
+## Fase 9 — Cache de listagem de produtos ✅
+- [x] Decisão de arquitetura: `produtos.php` permanece pra sempre sem cache (baseline) e uma página nova, `produtos_cache.php`, mostra a versão com cache — as duas convivem lado a lado pro dev júnior/recrutador comparar a qualquer momento, sem depender do cache estar "quente" ou "frio"
+- [x] `ProdutoRepository::listarPaginadoComCache()` — Cache-Aside pra listagem (Redis → MySQL → grava no Redis)
+- [x] Chave de cache considera página + tamanho de página + categoria (`listagem:produtos:pagina:{n}:por_pagina:{n}:categoria:{c|todas}`) — diferente de `produto:{id}`, aqui não existe "um id só"
+- [x] TTL de 60s pra listagem (bem menor que os 300s do item único) — comentado o porquê: lista muda por mais motivos (produto novo, produto removido, qualquer preço/estoque na página) e a combinação de chaves é maior
+- [x] SQL da consulta extraído pra `buscarListagemNoMysql()` (privado), reaproveitado pelas duas versões (com e sem cache), sem duplicar código
+- [x] Testado na prática: 1ª busca de um filtro = `mysql`; mesma busca de novo = `redis`; filtro diferente = `mysql` de novo (chave diferente); `produtos.php` (baseline) continua sempre `mysql` mesmo repetindo — TTL de 60s confirmado via `redis-cli ttl`
 
 ## Fase 10 — Invalidação de cache
 - [ ] Endpoint (ou script) que simula atualização de um produto no MySQL

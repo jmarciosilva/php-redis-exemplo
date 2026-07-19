@@ -1,17 +1,21 @@
 <?php
 
 /*
- * Página de listagem de produtos: uma tabela HTML de verdade, com filtro
- * por categoria e paginação — pensada tanto pra um dev júnior quanto pra
- * quem só quer ver a aplicação funcionando visualmente (sem precisar ler
- * JSON no terminal).
+ * Mesma listagem de produtos que produtos.php, só que usando
+ * listarPaginadoComCache() — o método do ProdutoRepository que implementa
+ * o padrão Cache-Aside pra LISTAS (Fase 9), não só pra item único (Fase 5).
  *
- * ESSA PÁGINA NUNCA USA REDIS — de propósito (chama listarPaginado(), o
- * método "baseline" do ProdutoRepository). Ela existe pra ficar como
- * referência permanente de comparação ao lado de produtos_cache.php (Fase
- * 9), que mostra a mesma listagem, só que com Cache-Aside. Assim dá pra
- * comparar os dois tempos lado a lado a qualquer momento, sem depender do
- * cache estar "quente" ou "frio" na hora.
+ * Por que uma página SEPARADA, em vez de só trocar o método dentro de
+ * produtos.php? Pra deixar as duas versões vivas ao mesmo tempo — assim um
+ * dev júnior (ou um recrutador) sempre consegue comparar "com cache" vs
+ * "sem cache" lado a lado, sem depender de estado de cache "quente" ou
+ * "frio" na hora que olhar. Repare que os dois arquivos são quase
+ * idênticos — a ÚNICA diferença de verdade é a linha que chama
+ * listarPaginadoComCache() em vez de listarPaginado().
+ *
+ * Recarregue a página duas vezes com o mesmo filtro/página: na primeira
+ * (ou depois de 60s, quando o cache dessa combinação expira) a origem é
+ * 'mysql'; nas seguintes, vira 'redis' e o tempo cai bastante.
  */
 
 declare(strict_types=1);
@@ -22,28 +26,24 @@ $pdo = require __DIR__ . '/../config/database.php';
 $redis = require __DIR__ . '/../config/redis.php';
 $repositorio = new ProdutoRepository($pdo, $redis);
 
-// Quantos produtos mostrar por página. Fixo por enquanto (não vem da URL)
-// pra manter a página de cache simples de prever mais pra frente.
+// Precisa ser o MESMO valor usado em produtos.php — a chave de cache leva
+// o tamanho de página em conta, então tamanhos diferentes gerariam chaves
+// (e portanto comparações) diferentes.
 const PRODUTOS_POR_PAGINA = 20;
 
-// max(1, ...) garante que nunca vamos tentar acessar a "página 0" ou
-// negativa, mesmo que alguém digite isso na URL na mão.
 $pagina = max(1, (int) ($_GET['pagina'] ?? 1));
 
-// Se o parâmetro "categoria" vier vazio (ex.: opção "Todas" do filtro),
-// tratamos como "sem filtro" (null), não como uma categoria de nome vazio.
 $categoriaSelecionada = isset($_GET['categoria']) && $_GET['categoria'] !== ''
     ? (string) $_GET['categoria']
     : null;
 
 $categoriasDisponiveis = $repositorio->listarCategorias();
 
-// Marca o instante antes de buscar os dados, pra medir quanto tempo a
-// consulta (ou, depois da Fase 9, a busca no cache) levou de verdade —
-// o mesmo tipo de medição que já fazemos em produto.php.
 $inicioDaConsulta = microtime(true);
 
-$resultado = $repositorio->listarPaginado($pagina, PRODUTOS_POR_PAGINA, $categoriaSelecionada);
+// A ÚNICA diferença real em relação a produtos.php: chamamos a versão
+// COM cache do repositório.
+$resultado = $repositorio->listarPaginadoComCache($pagina, PRODUTOS_POR_PAGINA, $categoriaSelecionada);
 
 $tempoDaConsultaMs = round((microtime(true) - $inicioDaConsulta) * 1000, 2);
 $origemDaListagem = $repositorio->origemDaUltimaListagem();
@@ -64,27 +64,26 @@ function urlDaPagina(int $numeroDaPagina, ?string $categoria): string
         $parametros['categoria'] = $categoria;
     }
 
-    return '/produtos.php?' . http_build_query($parametros);
+    return '/produtos_cache.php?' . http_build_query($parametros);
 }
 
-$tituloDaPagina = 'Produtos (sem cache)';
-$subtituloDaPagina = "{$totalDeProdutos} produtos no catálogo — consulta direto no MySQL, sempre, de propósito";
-$paginaAtiva = 'produtos';
+$tituloDaPagina = 'Produtos (com cache)';
+$subtituloDaPagina = "{$totalDeProdutos} produtos no catálogo — listagem cacheada no Redis (Cache-Aside, TTL de 60s)";
+$paginaAtiva = 'produtos_cache';
 require __DIR__ . '/../src/views/cabecalho.php';
 ?>
 
 <div class="aviso">
-    <span class="icone">⚠️</span>
+    <span class="icone">⚡</span>
     <div>
-        <strong>Essa é a versão SEM cache, de propósito.</strong>
-        Toda vez que você troca de página ou de categoria, é uma consulta nova no MySQL — esse tempo nunca deve cair.
-        Compare com a <a href="/produtos_cache.php">versão com cache (Cache-Aside)</a> pra ver a diferença.
+        <strong>Essa é a versão COM cache (Cache-Aside de listagem).</strong>
+        A primeira vez que uma combinação de página + categoria é pedida, vem do MySQL e fica guardada no Redis por 60s.
+        Recarregue a página com o mesmo filtro: a origem deve virar <code>redis</code> e o tempo cair bastante.
+        Compare com a <a href="/produtos.php">versão sem cache</a>.
     </div>
 </div>
 
 <?php
-// Mesmo mapeamento de ícone/classe usado no JS de performance.php — aqui é
-// PHP porque essa página é renderizada no servidor, não via fetch.
 $badgeDaOrigem = $origemDaListagem === 'redis'
     ? ['classe' => 'badge-redis', 'icone' => '⚡', 'texto' => 'Redis (cache)']
     : ['classe' => 'badge-mysql', 'icone' => '🗄️', 'texto' => 'MySQL (banco)'];
@@ -95,7 +94,7 @@ $badgeDaOrigem = $origemDaListagem === 'redis'
     em <strong><?= $tempoDaConsultaMs ?> ms</strong>.
 </p>
 
-<form class="linha-formulario" method="get" action="/produtos.php">
+<form class="linha-formulario" method="get" action="/produtos_cache.php">
     <label for="categoria">Categoria:</label>
     <select name="categoria" id="categoria" onchange="this.form.submit()">
         <option value="">Todas</option>

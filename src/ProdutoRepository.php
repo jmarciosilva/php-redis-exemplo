@@ -33,6 +33,19 @@ class ProdutoRepository
     // gente vai ver que TTL sozinho não é suficiente pra todos os casos.
     private const TTL_CACHE_EM_SEGUNDOS = 300;
 
+    // TTL da cache de LISTAGEM (Fase 9) — bem mais curto que o dos produtos
+    // (300s). Por quê? Uma listagem depende de MUITO mais coisa mudando:
+    // um produto novo, um produto removido, ou até só o preço/estoque de
+    // QUALQUER produto que apareça naquela página já deixa a lista
+    // levemente desatualizada. Além disso, cada combinação de página +
+    // categoria + tamanho de página vira uma chave DIFERENTE no Redis (ver
+    // listagemComoChave() abaixo) — um TTL curto evita acumular um monte
+    // de chaves velhas e raramente reaproveitadas. 60s ainda assim já
+    // segura bem o pico de gente batendo na mesma página popular ao mesmo
+    // tempo, que é o cenário que mais nos preocupa (ver ANALISE.md).
+    // Isso não substitui invalidação de verdade — é só o assunto da Fase 10.
+    private const TTL_CACHE_LISTAGEM_EM_SEGUNDOS = 60;
+
     // Guardamos as duas conexões recebidas de fora (injeção de dependência):
     // a classe não precisa saber DE ONDE vieram, só usa as duas prontas.
     private PDO $pdo;
@@ -81,8 +94,9 @@ class ProdutoRepository
         // Estratégia de chave: "produto:{id}", por exemplo "produto:42".
         // Prefixar com "produto:" é uma convenção comum no Redis (às vezes
         // chamada de "namespacing") — evita que essa chave colida com
-        // outras chaves que a gente for criar mais pra frente (por exemplo,
-        // "listagem:categoria:livros" na Fase 9) dentro do mesmo Redis.
+        // outras chaves que a gente criou na Fase 9 (as de listagem, tipo
+        // "listagem:produtos:pagina:1:por_pagina:20:categoria:todas")
+        // dentro do mesmo Redis.
         $chave = "produto:{$id}";
 
         // --- Passo 1: tenta achar no Redis primeiro ---
@@ -148,19 +162,80 @@ class ProdutoRepository
      *   'total'    => quantos produtos existem no TOTAL (com o filtro
      *                 aplicado), usado pra calcular quantas páginas existem
      *
-     * IMPORTANTE: esse método AINDA NÃO usa Redis — toda chamada consulta
-     * o MySQL direto. É de propósito: cachear uma LISTA é um problema
-     * diferente de cachear um item único (a chave precisa considerar
-     * página + filtro + tamanho de página, e a invalidação é mais
-     * delicada), e é exatamente disso que trata a próxima fase do projeto.
+     * ESSE MÉTODO NUNCA USA REDIS — de propósito. Ele é a versão "baseline"
+     * usada por public/produtos.php, que fica permanentemente sem cache,
+     * servindo de referência de comparação ao lado de
+     * public/produtos_cache.php (que usa listarPaginadoComCache() logo
+     * abaixo). Assim dá pra comparar os dois tempos lado a lado a qualquer
+     * momento, sem depender do cache estar "quente" ou "frio" na hora.
      */
     public function listarPaginado(int $pagina, int $porPagina, ?string $categoria): array
     {
-        // Por enquanto, toda listagem vem do MySQL — não existe outro
-        // caminho ainda. Na Fase 9, aqui vai entrar um "if" checando o
-        // Redis primeiro, igual já fazemos em buscarPorId().
         $this->origemDaUltimaListagem = 'mysql';
 
+        return $this->buscarListagemNoMysql($pagina, $porPagina, $categoria);
+    }
+
+    /**
+     * Mesma listagem paginada de listarPaginado(), só que usando o padrão
+     * **Cache-Aside** (Fase 9): procura no Redis primeiro, e só vai no
+     * MySQL se não encontrar.
+     *
+     * Usado por public/produtos_cache.php — a versão "otimizada" que a
+     * gente compara lado a lado com a versão sem cache.
+     */
+    public function listarPaginadoComCache(int $pagina, int $porPagina, ?string $categoria): array
+    {
+        $chave = $this->chaveDeCacheDaListagem($pagina, $porPagina, $categoria);
+
+        // --- Passo 1: tenta achar a listagem pronta no Redis ---
+        $listagemEmCache = $this->redis->get($chave);
+
+        if ($listagemEmCache !== false) {
+            $this->origemDaUltimaListagem = 'redis';
+
+            return json_decode($listagemEmCache, true);
+        }
+
+        // --- Passo 2: não tava no cache, busca no MySQL (reaproveitando a
+        // mesma consulta do método baseline, pra não duplicar SQL) ---
+        $this->origemDaUltimaListagem = 'mysql';
+        $resultado = $this->buscarListagemNoMysql($pagina, $porPagina, $categoria);
+
+        // --- Passo 3: guarda no Redis pra próxima vez vir do cache ---
+        // TTL bem mais curto que o de produto único (ver o porquê no
+        // comentário da constante TTL_CACHE_LISTAGEM_EM_SEGUNDOS).
+        $this->redis->setex($chave, self::TTL_CACHE_LISTAGEM_EM_SEGUNDOS, json_encode($resultado));
+
+        return $resultado;
+    }
+
+    /**
+     * Monta a chave de cache de uma listagem, considerando TODOS os
+     * parâmetros que mudam o resultado: página, tamanho de página e
+     * categoria. Isso é o que mais diferencia cachear uma LISTA de
+     * cachear um item único (produto:{id}) — aqui não existe "um id só",
+     * existe uma combinação de filtros, e cada combinação diferente
+     * precisa da sua própria chave (senão a página 2 acabaria devolvendo
+     * os mesmos dados da página 1, por exemplo).
+     */
+    private function chaveDeCacheDaListagem(int $pagina, int $porPagina, ?string $categoria): string
+    {
+        // Se não tem filtro de categoria, usamos a palavra "todas" no lugar
+        // — só pra ter uma chave previsível também para esse caso, em vez
+        // de deixar um pedaço vazio no meio da string.
+        $categoriaNaChave = $categoria ?? 'todas';
+
+        return "listagem:produtos:pagina:{$pagina}:por_pagina:{$porPagina}:categoria:{$categoriaNaChave}";
+    }
+
+    /**
+     * A consulta de verdade no MySQL, sem nenhuma lógica de cache — usada
+     * tanto por listarPaginado() (que sempre chama isso direto) quanto por
+     * listarPaginadoComCache() (que só chama isso quando dá cache miss).
+     */
+    private function buscarListagemNoMysql(int $pagina, int $porPagina, ?string $categoria): array
+    {
         // Quantos registros "pular" antes de começar a listar. Ex.: na
         // página 3, com 20 por página, pulamos os 40 primeiros (páginas 1 e 2).
         $offset = ($pagina - 1) * $porPagina;
