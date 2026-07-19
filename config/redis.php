@@ -38,6 +38,13 @@ $redis->connect($host, $porta);
 // padrão em caso de erro de conexão — não precisamos configurar nenhum
 // "modo de erro" à parte aqui.
 
+// SCAN_RETRY faz o comando SCAN (usado na Fase 10 pra encontrar e invalidar
+// várias chaves de listagem de uma vez, ver ProdutoRepository) repetir
+// sozinho quando o Redis devolve um "cursor" intermediário vazio — sem
+// isso, precisaríamos escrever esse retry na mão toda vez que usássemos
+// SCAN. É só uma opção de conveniência, não muda o que o SCAN devolve.
+$redis->setOption(Redis::OPT_SCAN, Redis::SCAN_RETRY);
+
 // Igual no config/database.php, devolvemos a conexão pronta através de um
 // "return". Isso é o que permite escrever
 // "$redis = require __DIR__ . '/../config/redis.php';" em qualquer lugar

@@ -13,7 +13,7 @@
  *
  * Quem inclui esse arquivo deve definir ANTES estas variáveis:
  *   $tituloDaPagina    (string) — vira o <title> e o texto do <h1>
- *   $paginaAtiva       (string) — 'inicio' | 'produtos' | 'produtos_cache' | 'performance',
+ *   $paginaAtiva       (string) — 'inicio' | 'produtos' | 'produtos_cache' | 'editar' | 'performance',
  *                                  usado só pra destacar o link certo no menu
  *   $subtituloDaPagina (string, opcional) — uma linha de apoio abaixo do <h1>
  */
@@ -34,6 +34,7 @@ $subtituloDaPagina = $subtituloDaPagina ?? null;
                 <li><a href="/" class="<?= $paginaAtiva === 'inicio' ? 'ativo' : '' ?>">Diagnóstico</a></li>
                 <li><a href="/produtos.php" class="<?= $paginaAtiva === 'produtos' ? 'ativo' : '' ?>">Produtos (sem cache)</a></li>
                 <li><a href="/produtos_cache.php" class="<?= $paginaAtiva === 'produtos_cache' ? 'ativo' : '' ?>">Produtos (com cache)</a></li>
+                <li><a href="/editar_produto.php" class="<?= $paginaAtiva === 'editar' ? 'ativo' : '' ?>">Editar (invalidação)</a></li>
                 <li><a href="/performance.php" class="<?= $paginaAtiva === 'performance' ? 'ativo' : '' ?>">Performance</a></li>
             </ul>
         </div>

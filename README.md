@@ -50,6 +50,7 @@ php-redis-exemplo/
 │   ├── produtos_cache.php  # a mesma listagem, agora COM cache (Cache-Aside), lado a lado com a de cima
 │   ├── performance.php     # dashboard com os números do benchmark + testador ao vivo
 │   ├── produto.php         # endpoint JSON: busca 1 produto (Cache-Aside)
+│   ├── editar_produto.php  # laboratório de invalidação: edita um produto com ou sem invalidar o cache
 │   ├── limpar_cache.php    # endpoint JSON: força um cache miss num produto (usado pelo testador ao vivo)
 │   └── assets/
 │       ├── css/estilo.css      # CSS puro, compartilhado por todas as páginas
@@ -89,6 +90,7 @@ Com tudo no ar, acesse:
 - **http://localhost:8080/** — diagnóstico do ambiente (extensões PHP, conexão MySQL, seed importado, conexão Redis);
 - **http://localhost:8080/produtos.php** — listagem de produtos **sem cache** (baseline permanente, sempre consulta o MySQL);
 - **http://localhost:8080/produtos_cache.php** — a mesma listagem, **com cache** (Cache-Aside) — compare os tempos lado a lado com a de cima; recarregue com o mesmo filtro pra ver a origem virar `redis`;
+- **http://localhost:8080/editar_produto.php** — laboratório de invalidação: carregue um produto, edite "sem invalidar" (veja o Redis ficar desatualizado) e depois "com invalidação" (veja corrigir na hora);
 - **http://localhost:8080/performance.php** — dashboard com os números do benchmark e um testador ao vivo (digite um id, veja a origem mudar de `mysql` pra `redis` na segunda busca);
 - **http://localhost:8080/produto.php?id=1** — o endpoint JSON puro (Cache-Aside), se você preferir ver a resposta crua.
 

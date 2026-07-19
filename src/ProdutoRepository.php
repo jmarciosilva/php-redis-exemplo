@@ -288,6 +288,141 @@ class ProdutoRepository
     }
 
     /**
+     * Busca um produto DIRETO no MySQL, ignorando o Redis por completo —
+     * nem lê, nem grava cache. Usado por public/editar_produto.php pra
+     * mostrar sempre o dado "de verdade" (a fonte da verdade) na tela de
+     * edição, independente do que estiver (ou não) cacheado no momento.
+     */
+    public function buscarPorIdSemCache(int $id): ?array
+    {
+        $consulta = $this->pdo->prepare(
+            'SELECT id, nome, descricao, categoria, preco, estoque
+             FROM produtos
+             WHERE id = :id'
+        );
+        $consulta->execute(['id' => $id]);
+
+        $produto = $consulta->fetch();
+
+        return $produto === false ? null : $produto;
+    }
+
+    /**
+     * Atualiza um produto no MySQL e NÃO mexe no Redis — de propósito.
+     *
+     * Esse método existe só pra DEMONSTRAR o problema: se você já tinha
+     * visitado esse produto antes (e portanto ele está cacheado), depois
+     * de chamar esse método o Redis continua devolvendo os dados ANTIGOS
+     * até o TTL de 300s expirar sozinho. É exatamente esse tipo de "dado
+     * desatualizado" (stale) que motivou o teste técnico que inspirou esse
+     * projeto (ver ANALISE.md) — e o motivo de nunca fazer isso de verdade
+     * numa aplicação real.
+     *
+     * Devolve true se algum produto foi realmente alterado no banco.
+     */
+    public function atualizarSemInvalidarCache(int $id, string $nome, float $preco, int $estoque): bool
+    {
+        return $this->executarAtualizacaoNoMysql($id, $nome, $preco, $estoque) > 0;
+    }
+
+    /**
+     * Atualiza um produto no MySQL e, dessa vez, invalida corretamente o
+     * cache — é assim que uma aplicação de verdade deveria fazer.
+     *
+     * Duas invalidações acontecem aqui, e são bem diferentes uma da outra:
+     *
+     *   1. Item único: fácil e preciso. A gente SABE exatamente qual
+     *      chave apagar — "produto:{id}" — porque só existe UMA chave
+     *      por produto.
+     *   2. Listagens: MUITO mais difícil de fazer com precisão. Esse
+     *      mesmo produto pode aparecer em várias páginas e em várias
+     *      combinações de filtro por categoria (ex.: página 3 "sem
+     *      filtro" E página 1 "categoria X", ao mesmo tempo) — descobrir
+     *      exatamente quais chaves de listagem contêm esse produto exigiria
+     *      rastrear isso à parte (o que é bem mais complexo do que parece).
+     *      A saída pragmática — e comum na prática — é invalidar TODAS as
+     *      listagens cacheadas de uma vez (ver invalidarCacheDeListagens()).
+     *      É uma invalidação "grosseira" (apaga listagens que nem
+     *      continham esse produto), mas é simples, correta, e barata: como
+     *      o TTL de listagem já é curto (60s), o prejuízo de invalidar a
+     *      mais é pequeno.
+     *
+     * Devolve true se algum produto foi realmente alterado no banco.
+     */
+    public function atualizarComInvalidacaoDeCache(int $id, string $nome, float $preco, int $estoque): bool
+    {
+        $linhasAfetadas = $this->executarAtualizacaoNoMysql($id, $nome, $preco, $estoque);
+
+        if ($linhasAfetadas > 0) {
+            // 1. Invalidação precisa do item único.
+            $this->redis->del("produto:{$id}");
+
+            // 2. Invalidação "grosseira" de todas as listagens cacheadas.
+            $this->invalidarCacheDeListagens();
+        }
+
+        return $linhasAfetadas > 0;
+    }
+
+    /**
+     * O UPDATE de verdade no MySQL, sem nenhuma lógica de cache — usado
+     * pelos dois métodos acima (com e sem invalidação), pra não duplicar
+     * o SQL. Devolve quantas linhas foram alteradas (0 ou 1, já que
+     * filtramos por id).
+     */
+    private function executarAtualizacaoNoMysql(int $id, string $nome, float $preco, int $estoque): int
+    {
+        $consulta = $this->pdo->prepare(
+            'UPDATE produtos
+             SET nome = :nome, preco = :preco, estoque = :estoque
+             WHERE id = :id'
+        );
+
+        $consulta->execute([
+            'nome' => $nome,
+            'preco' => $preco,
+            'estoque' => $estoque,
+            'id' => $id,
+        ]);
+
+        return $consulta->rowCount();
+    }
+
+    /**
+     * Apaga TODAS as chaves de listagem cacheadas (todas as combinações de
+     * página/tamanho/categoria), usando SCAN em vez de KEYS.
+     *
+     * Por que SCAN e não KEYS? KEYS varre o Redis inteiro de uma vez só e
+     * BLOQUEIA o servidor enquanto isso — num Redis com milhões de chaves,
+     * isso poderia travar a aplicação toda por um bom tempo. SCAN faz a
+     * mesma varredura, só que em pequenos pedaços (aqui, 100 chaves por
+     * vez), sem travar o Redis pros outros comandos que estiverem rodando
+     * ao mesmo tempo. Pra um projeto de estudo como esse a diferença não
+     * se sente, mas é o hábito certo a criar desde já.
+     */
+    private function invalidarCacheDeListagens(): void
+    {
+        $cursor = null;
+
+        do {
+            // O terceiro argumento é o "padrão" de chave (igual um coringa
+            // de sistema de arquivos: "listagem:produtos:*" bate com
+            // qualquer chave que comece com esse prefixo). O quarto é
+            // quantas chaves pedir por vez ao Redis.
+            $chaves = $this->redis->scan($cursor, 'listagem:produtos:*', 100);
+
+            if ($chaves !== false) {
+                foreach ($chaves as $chave) {
+                    $this->redis->del($chave);
+                }
+            }
+            // $cursor é atualizado pelo próprio scan() (passado por
+            // referência); quando o Redis termina de varrer tudo, ele
+            // volta a valer 0, e o loop para.
+        } while ($cursor !== 0);
+    }
+
+    /**
      * Lista as categorias distintas que existem na tabela, em ordem
      * alfabética — usado pra montar o filtro (<select>) da página de
      * produtos.

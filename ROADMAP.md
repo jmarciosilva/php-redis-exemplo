@@ -61,11 +61,12 @@ Este arquivo mostra todas as fases planejadas pro `php-redis-exemplo`. Conforme 
 - [x] SQL da consulta extraído pra `buscarListagemNoMysql()` (privado), reaproveitado pelas duas versões (com e sem cache), sem duplicar código
 - [x] Testado na prática: 1ª busca de um filtro = `mysql`; mesma busca de novo = `redis`; filtro diferente = `mysql` de novo (chave diferente); `produtos.php` (baseline) continua sempre `mysql` mesmo repetindo — TTL de 60s confirmado via `redis-cli ttl`
 
-## Fase 10 — Invalidação de cache
-- [ ] Endpoint (ou script) que simula atualização de um produto no MySQL
-- [ ] Ao atualizar, invalidar (ou atualizar) a chave correspondente no Redis
-- [ ] Explicar o risco de dado desatualizado (stale) se isso não for feito
-- [ ] Cobrir também o impacto na listagem (invalidar item único não basta se existe cache de lista)
+## Fase 10 — Invalidação de cache ✅
+- [x] `public/editar_produto.php` — "laboratório" que carrega um produto do MySQL, mostra lado a lado o que está no MySQL x o que está no Redis agora, e deixa editar
+- [x] Dois caminhos no `ProdutoRepository`, de propósito: `atualizarSemInvalidarCache()` (demonstra o bug) e `atualizarComInvalidacaoDeCache()` (correto) — mesmo botão de UPDATE (`executarAtualizacaoNoMysql()`), reaproveitado
+- [x] Explicado (em código e na página) o risco de dado desatualizado (stale): testei o ciclo completo — visita popula cache → edita sem invalidar → `produto.php` ainda mostra o valor velho (origem `redis`) → edita com invalidação → `produto.php` mostra o valor novo na hora (origem `mysql`)
+- [x] Cobre também o impacto na listagem: `atualizarComInvalidacaoDeCache()` também apaga TODAS as chaves `listagem:produtos:*` (via `SCAN`, não `KEYS`, pra não bloquear o Redis) — testado: duas listagens cacheadas, ambas some depois de uma única edição
+- [x] Discutido por que a invalidação de item único é precisa (uma chave) mas a de listagem é "grosseira" (apaga tudo, já que rastrear quais páginas contêm um produto seria bem mais complexo) — mitigado pelo TTL curto de 60s da Fase 9
 
 ## Fase 11 — Cache stampede
 - [ ] Demonstrar o problema: TTL expira e várias requisições simultâneas caem no MySQL ao mesmo tempo
