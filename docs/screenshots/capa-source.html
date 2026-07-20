@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>capa</title>
+<style>
+  :root {
+    --ink: #150c0d;
+    --panel: #1f1315;
+    --panel-border: #382224;
+    --redis: #e14434;
+    --redis-dim: #7a2b23;
+    --cache: #35d4a0;
+    --cache-dim: #1f6650;
+    --php: #9b8fd4;
+    --text: #f5edea;
+    --text-muted: #b29d99;
+    --text-faint: #7a6663;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 1200px;
+    height: 630px;
+    background: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    overflow: hidden;
+  }
+
+  .cena {
+    position: relative;
+    width: 1200px;
+    height: 630px;
+    background:
+      radial-gradient(ellipse 900px 500px at 18% 8%, rgba(225, 68, 52, 0.10), transparent 60%),
+      radial-gradient(ellipse 700px 420px at 85% 95%, rgba(53, 212, 160, 0.08), transparent 60%),
+      var(--ink);
+  }
+
+  /* janela de terminal */
+  .janela {
+    position: absolute;
+    top: 56px;
+    left: 64px;
+    right: 64px;
+    bottom: 56px;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.45);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .barra {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 16px 22px;
+    border-bottom: 1px solid var(--panel-border);
+    flex-shrink: 0;
+  }
+
+  .pontos { display: flex; gap: 8px; }
+  .ponto { width: 11px; height: 11px; border-radius: 50%; }
+  .ponto:nth-child(1) { background: #5a3a38; }
+  .ponto:nth-child(2) { background: #5a4a38; }
+  .ponto:nth-child(3) { background: #3a5a48; }
+
+  .caminho {
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+    font-size: 14px;
+    color: var(--text-faint);
+    letter-spacing: 0.01em;
+  }
+
+  .conteudo {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 8px 56px 34px;
+    min-height: 0;
+  }
+
+  canvas#onda {
+    width: 100%;
+    height: 190px;
+    display: block;
+  }
+
+  .legenda-onda {
+    display: flex;
+    gap: 28px;
+    margin-top: -4px;
+    margin-bottom: 22px;
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .legenda-onda span.chave { display: inline-flex; align-items: center; gap: 8px; }
+  .amostra { width: 20px; height: 3px; border-radius: 2px; display: inline-block; }
+
+  .comentario {
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+    color: var(--text-faint);
+    font-size: 20px;
+    margin: 0 0 6px;
+  }
+
+  h1 {
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+    font-size: 50px;
+    line-height: 1.14;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0 0 18px;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+
+  h1 .destaque { color: var(--redis); }
+  h1 .destaque2 { color: var(--cache); }
+
+  .subtitulo {
+    font-size: 20px;
+    line-height: 1.5;
+    color: var(--text-muted);
+    max-width: 760px;
+    margin: 0 0 auto;
+  }
+
+  .rodape {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-top: 26px;
+  }
+
+  .tags { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  .tag {
+    font-family: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+    font-size: 13px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--panel-border);
+    color: var(--text-muted);
+    background: rgba(255,255,255,0.02);
+  }
+
+  .autor {
+    font-size: 16px;
+    color: var(--text-muted);
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .autor strong { color: var(--text); font-weight: 600; }
+</style>
+</head>
+<body>
+  <div class="cena">
+    <div class="janela">
+      <div class="barra">
+        <div class="pontos"><span class="ponto"></span><span class="ponto"></span><span class="ponto"></span></div>
+        <div class="caminho">~/php-redis-exemplo — latencia.log</div>
+      </div>
+
+      <div class="conteudo">
+        <canvas id="onda" width="1088" height="190"></canvas>
+        <div class="legenda-onda">
+          <span class="chave"><span class="amostra" style="background: var(--redis);"></span>sem cache · MySQL</span>
+          <span class="chave"><span class="amostra" style="background: var(--cache);"></span>com cache · Redis</span>
+        </div>
+
+        <p class="comentario">// o que acontece quando um produto fica popular</p>
+        <h1>PHP puro com <span class="destaque">Redis</span> na prática:<br>cache que <span class="destaque2">funciona</span> de verdade</h1>
+        <p class="subtitulo">Cache-Aside, invalidação e cache stampede — construídos do zero, medidos com números reais, sem mágica de framework escondendo a parte interessante.</p>
+
+        <div class="rodape">
+          <div class="tags">
+            <span class="tag">Cache-Aside</span>
+            <span class="tag">Invalidação</span>
+            <span class="tag">Cache Stampede</span>
+          </div>
+          <div class="autor">por <strong>José Márcio Ferreira da Silva</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const canvas = document.getElementById('onda');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  // grade discreta e recessiva, só pra dar textura de "osciloscópio"
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= W; x += 68) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = 0; y <= H; y += 38) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  const baseline = H - 34;
+  const spikeTop = 22;
+  const settleY = H - 70;
+
+  function pathLatencia() {
+    ctx.moveTo(0, baseline);
+    ctx.lineTo(120, baseline);
+    // pico irregular (varias requisicoes simultaneas batendo no MySQL)
+    ctx.lineTo(150, spikeTop + 30);
+    ctx.lineTo(175, spikeTop + 5);
+    ctx.lineTo(200, spikeTop + 46);
+    ctx.lineTo(226, spikeTop);
+    ctx.lineTo(252, spikeTop + 38);
+    ctx.lineTo(280, spikeTop + 12);
+    ctx.lineTo(312, baseline - 40);
+    // decaimento ate estabilizar no patamar do cache
+    ctx.bezierCurveTo(400, settleY + 60, 480, settleY - 6, 560, settleY);
+  }
+
+  // area sob a curva ate o pico (tom quente, bem discreto)
+  ctx.save();
+  ctx.beginPath();
+  pathLatencia();
+  ctx.lineTo(560, H);
+  ctx.lineTo(0, H);
+  ctx.closePath();
+  const gradPico = ctx.createLinearGradient(0, 0, 0, H);
+  gradPico.addColorStop(0, 'rgba(225,68,52,0.22)');
+  gradPico.addColorStop(1, 'rgba(225,68,52,0)');
+  ctx.fillStyle = gradPico;
+  ctx.fill();
+  ctx.restore();
+
+  // linha do pico (mysql) ate o ponto de transicao
+  ctx.save();
+  ctx.beginPath();
+  pathLatencia();
+  ctx.strokeStyle = '#e14434';
+  ctx.lineWidth = 3;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.shadowColor = 'rgba(225,68,52,0.55)';
+  ctx.shadowBlur = 14;
+  ctx.stroke();
+  ctx.restore();
+
+  // linha estavel do cache (verde), com leve ruido organico
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(560, settleY);
+  let x = 560;
+  let toggle = 1;
+  while (x < W) {
+    const nx = x + 26;
+    const ny = settleY + (toggle * 3);
+    ctx.lineTo(nx, ny);
+    toggle *= -1;
+    x = nx;
+  }
+  ctx.strokeStyle = '#35d4a0';
+  ctx.lineWidth = 3;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.shadowColor = 'rgba(53,212,160,0.6)';
+  ctx.shadowBlur = 16;
+  ctx.stroke();
+  ctx.restore();
+
+  // ponto de marcacao no topo do pico
+  ctx.beginPath();
+  ctx.arc(226, spikeTop, 4.5, 0, Math.PI * 2);
+  ctx.fillStyle = '#e14434';
+  ctx.fill();
+
+  // ponto de marcacao na linha estavel
+  ctx.beginPath();
+  ctx.arc(560, settleY, 4.5, 0, Math.PI * 2);
+  ctx.fillStyle = '#35d4a0';
+  ctx.fill();
+
+  ctx.font = '600 13px ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace';
+  ctx.fillStyle = '#e8b3ab';
+  ctx.fillText('~180ms (fila no MySQL)', 236, spikeTop + 14);
+  ctx.fillStyle = '#a8f0d8';
+  ctx.fillText('~0.3ms (Redis)', 566, settleY - 14);
+</script>
+</body>
+</html>

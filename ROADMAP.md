@@ -83,6 +83,6 @@ Este arquivo mostra todas as fases planejadas pro `php-redis-exemplo`. Conforme 
 - [x] **Achado importante ao revisar o ANALISE.md**: os números do benchmark (Fase 7) tinham sido medidos com o bug do `pm.max_children = 5` (só descoberto na Fase 11) ainda presente. Refizemos os testes com o PHP-FPM corrigido e o resultado mudou: dentro da capacidade do PHP-FPM (≤30 simultâneas), o cache não faz diferença perceptível pra essa consulta indexada numa tabela de 10k linhas — o ganho real (1,1x-1,5x, com variância notável entre execuções) só aparece quando a concorrência ultrapassa a capacidade do servidor e as requisições passam a esperar em fila. `ANALISE.md` reescrito com essa história completa, com transparência sobre a variância observada
 
 ## Fase 13 — Publicação
+- [x] Decisão: **sem demo hospedada**. A hospedagem compartilhada do Hostinger não roda Docker nem deixa manter um Redis próprio (sem root, sem processo daemon persistente) — resolver isso exigiria um Redis gerenciado externo, e ainda assim o projeto tem páginas que escrevem no banco sem autenticação (`editar_produto.php`, `limpar_cache.php`), de propósito didático, mas arriscadas num deploy público de verdade. Optamos por indicar o link do repositório no GitHub, pra rodar localmente via Docker (já é o que o README ensina)
 - [ ] Escrever o post do blog usando este repositório como base
-- [ ] (Opcional) Subir uma demo hospedada
-- [ ] Atualizar o README.md com o link do post e/ou da demo
+- [ ] Atualizar o README.md com o link do post quando publicar
